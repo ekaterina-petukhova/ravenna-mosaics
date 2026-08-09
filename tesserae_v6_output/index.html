@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>
+    Ravenna — Tessera by Tessera
+  </title>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      height: 680vh;
+      overflow-x: hidden;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #mosaic {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+
+      width: 0;
+      height: 2px;
+
+      background: #d0a43c;
+    }
+
+    .brand {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      z-index: 10;
+
+      color: #cfad54;
+
+      font:
+        15px
+        Georgia,
+        serif;
+
+      letter-spacing: .18em;
+
+      pointer-events: none;
+    }
+
+    .step {
+      position: absolute;
+      top: 25px;
+      right: 28px;
+      z-index: 10;
+
+      color: #777;
+
+      font-size: 10px;
+
+      letter-spacing: .22em;
+      text-transform: uppercase;
+
+      pointer-events: none;
+    }
+
+    #stats {
+      position: absolute;
+      right: 28px;
+      bottom: 22px;
+      z-index: 10;
+
+      color: #777;
+
+      font-size: 10px;
+
+      letter-spacing: .18em;
+      text-transform: uppercase;
+
+      pointer-events: none;
+    }
+
+    #copy {
+      position: absolute;
+      left: 50%;
+      bottom: 7vh;
+      z-index: 10;
+
+      width:
+        min(
+          760px,
+          88vw
+        );
+
+      transform:
+        translateX(-50%);
+
+      text-align: center;
+
+      pointer-events: none;
+    }
+
+    .kicker {
+      margin-bottom: 10px;
+
+      color: #b9963d;
+
+      font-size: 10px;
+
+      letter-spacing: .28em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+
+      font:
+        400
+        clamp(
+          30px,
+          4.4vw,
+          60px
+        ) /
+        1.03
+        Georgia,
+        serif;
+
+      letter-spacing: -.02em;
+    }
+
+    p {
+      max-width: 620px;
+
+      margin:
+        12px
+        auto
+        0;
+
+      color: #989898;
+
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 40px;
+
+      background: #000;
+
+      color: #aaa;
+
+      text-align: center;
+
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    @media (
+      max-width: 700px
+    ) {
+      .brand {
+        top: 18px;
+        left: 18px;
+      }
+
+      .step {
+        top: 19px;
+        right: 18px;
+      }
+
+      #stats {
+        right: 18px;
+      }
+
+      #copy {
+        bottom: 10vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="stage">
+
+    <canvas id="mosaic">
+    </canvas>
+
+    <div id="bar">
+    </div>
+
+    <div class="brand">
+      RAVENNA MOSAICS
+    </div>
+
+    <div
+      class="step"
+      id="step"
+    >
+      01 · TESSERA
+    </div>
+
+    <div id="copy">
+
+      <div
+        class="kicker"
+        id="kicker"
+      >
+        One tessera
+      </div>
+
+      <h1 id="title">
+        Everything begins with one stone.
+      </h1>
+
+      <p id="desc">
+        Прокручивай — мозаика будет собираться
+        камушек за камушком.
+      </p>
+
+    </div>
+
+    <div id="stats">
+    </div>
+
+    <div id="loading">
+      Загружаю 04_mosaic_ultra.json…
+    </div>
+
+  </div>
+
+  <script src="./app.js">
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+.venv
+outlined_tesserae_output/01_upscaled.png
+tesserae_v4_output/09_tesserae_v4.json
+tesserae_v5_output/04_mosaic_ultra.json
+tesserae_v7_pixels/04_mosaic_ultra.json
+tesserae_v8_pixelgrid/04_mosaic_ultra.json
+tesserae_watershed_output/09_tesserae.json
+*.jpg
+*.png 
+*.csv
