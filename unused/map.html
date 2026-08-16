@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Mapping the Mosaics of Ravenna</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+
+  <link rel="stylesheet" href="map/map.css" />
+</head>
+
+<body>
+
+  <header class="map-header">
+
+    <a href="index.html" class="back-link">
+      <span aria-hidden="true">←</span>
+      Ravenna Mosaics
+    </a>
+
+    <div class="map-title">
+      <span>Interactive Atlas</span>
+      <h1>Mapping the Mosaics of Ravenna</h1>
+    </div>
+
+    <div class="map-period" id="header-period">
+      5th–6th centuries
+    </div>
+
+  </header>
+
+
+  <main class="map-layout">
+
+    <aside class="map-sidebar">
+
+      <section class="map-intro">
+
+        <span class="eyebrow">
+          Explore Ravenna
+        </span>
+
+        <h2>
+          A city written<br />
+          in tesserae.
+        </h2>
+
+        <p>
+          Explore Ravenna's Late Antique mosaic landscape
+          through monuments, historical periods and thematic routes.
+        </p>
+
+      </section>
+
+
+      <section class="timeline-panel">
+
+        <div class="panel-label">
+          Historical timeline
+        </div>
+
+        <div class="timeline">
+
+          <button class="timeline-point" data-era="lateRoman">
+            <span class="timeline-dot"></span>
+            <span class="timeline-copy">
+              <strong>5th c.</strong>
+              Late Roman
+            </span>
+          </button>
+
+          <button class="timeline-point" data-era="ostrogothic">
+            <span class="timeline-dot"></span>
+            <span class="timeline-copy">
+              <strong>493–540</strong>
+              Ostrogothic
+            </span>
+          </button>
+
+          <button class="timeline-point" data-era="byzantine">
+            <span class="timeline-dot"></span>
+            <span class="timeline-copy">
+              <strong>6th c.</strong>
+              Byzantine
+            </span>
+          </button>
+
+          <button class="timeline-point active" data-era="all">
+            <span class="timeline-dot"></span>
+            <span class="timeline-copy">
+              <strong>All</strong>
+              Explore
+            </span>
+          </button>
+
+        </div>
+
+        <div id="era-info" class="era-info">
+
+          <h3 id="period-title">
+            Ravenna across centuries
+          </h3>
+
+          <p id="period-description">
+            Trace the transformation of Ravenna from Late Roman
+            imperial capital to Ostrogothic kingdom and Byzantine centre.
+          </p>
+
+        </div>
+
+      </section>
+
+
+      <section class="routes-panel">
+
+        <div class="panel-label">
+          Narrative routes
+        </div>
+
+        <div class="route-buttons">
+
+          <button class="route-btn" data-route="power">
+            Power &amp; Empire
+          </button>
+
+          <button class="route-btn" data-route="christ">
+            Images of Christ
+          </button>
+
+          <button class="route-btn" data-route="unesco">
+            UNESCO Heritage
+          </button>
+
+          <button class="route-btn" data-route="all">
+            Reset
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <section class="sites-section">
+
+        <div class="panel-label">
+          Monuments
+        </div>
+
+        <div id="site-list"></div>
+
+      </section>
+
+    </aside>
+
+
+    <section class="map-container">
+
+      <div id="map"></div>
+
+      <div class="map-overlay">
+
+        <span>
+          Spatial history
+        </span>
+
+        <h3>
+          Ravenna's Mosaic Landscape
+        </h3>
+
+        <p>
+          Select a monument to explore its historical
+          and visual context.
+        </p>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+
+  <script src="map/map.js"></script>
+
+</body>
+</html>
