@@ -90,6 +90,90 @@
     return `#${to2(r)}${to2(g)}${to2(b)}`;
   };
 
+  const enhanceMosaicColor = (
+    r,
+    g,
+    b
+  ) => {
+    /*
+      Перцептивная яркость исходного цвета.
+    */
+
+    const luminance =
+      r * 0.2126 +
+      g * 0.7152 +
+      b * 0.0722;
+
+
+    /*
+      Отдаляем каждый канал от серого:
+      насыщенность увеличивается на 25%.
+    */
+
+    const saturationBoost =
+      1.25;
+
+
+    r =
+      luminance +
+      (
+        r -
+        luminance
+      ) *
+      saturationBoost;
+
+    g =
+      luminance +
+      (
+        g -
+        luminance
+      ) *
+      saturationBoost;
+
+    b =
+      luminance +
+      (
+        b -
+        luminance
+      ) *
+      saturationBoost;
+
+
+    /*
+      Немного увеличиваем общую яркость
+      и мягко поднимаем тёмные оттенки.
+    */
+
+    const brightnessBoost =
+      1.18;
+
+    const shadowLift =
+      4;
+
+
+    r =
+      r *
+      brightnessBoost +
+      shadowLift;
+
+    g =
+      g *
+      brightnessBoost +
+      shadowLift;
+
+    b =
+      b *
+      brightnessBoost +
+      shadowLift;
+
+
+    return rgbToHex(
+      r,
+      g,
+      b
+    );
+  };
+
 
   // ============================================================
   // SETTINGS
@@ -598,8 +682,13 @@
         b *= bright;
 
 
+        /*
+          Цвет из JSON сохраняет исходный оттенок,
+          но становится насыщеннее и немного светлее.
+        */
+
         const color =
-          rgbToHex(
+          enhanceMosaicColor(
             r,
             g,
             b
@@ -651,13 +740,45 @@
     }
 
 
-    heroCell =
-      cells.find(
-        c =>
-          c.index ===
-          heroIndex
-      ) ||
-      cells[0];
+    const blueHeroCandidates =
+  cells.filter(
+    cell => {
+      const rgb =
+        hexToRgb(
+          cell.color
+        );
+
+      return (
+        rgb.b > rgb.r * 1.18 &&
+        rgb.b > rgb.g * 1.03 &&
+        cell.radial < 0.28
+      );
+    }
+  );
+
+
+  heroCell =
+    blueHeroCandidates.reduce(
+      (best, cell) => {
+        if (
+          !best ||
+          cell.radial < best.radial
+        ) {
+          return cell;
+        }
+
+        return best;
+      },
+      null
+    ) ||
+
+    cells.find(
+      cell =>
+        cell.index ===
+        heroIndex
+    ) ||
+
+    cells[0];
 
 
     
@@ -909,6 +1030,14 @@
       const cell
       of cells
     ) {
+
+      if (
+        heroCell &&
+        cell.index === heroCell.index
+      ) {
+        continue;
+      }
+
       const bucketIndex =
         Math.min(
           BUCKET_COUNT - 1,
@@ -1184,6 +1313,72 @@
     };
   }
 
+
+  function updateHeroTarget(
+    rect
+  ) {
+    if (
+      !heroCell ||
+      !gridCols ||
+      !gridRows
+    ) {
+      return;
+    }
+
+
+    const cellW =
+      rect.w /
+      gridCols;
+
+
+    const cellH =
+      rect.h /
+      gridRows;
+
+
+    const target = {
+      x:
+        rect.x +
+        (
+          heroCell.col +
+          0.5
+        ) *
+        cellW,
+
+      y:
+        rect.y +
+        (
+          heroCell.row +
+          0.5
+        ) *
+        cellH,
+
+      size:
+        Math.min(
+          cellW,
+          cellH
+        ) *
+        CELL_FILL,
+
+      color:
+        heroCell.color
+    };
+
+
+    window.__mosaicHeroTarget =
+      target;
+
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "mosaic-hero-target",
+        {
+          detail:
+            target
+        }
+      )
+    );
+  }
 
   // ============================================================
   // DRAW ONE GRID CELL
@@ -2544,10 +2739,57 @@
       getRect();
 
 
+    updateHeroTarget(
+      rect
+    );
+
+
     drawAssembly(
       progress,
       rect
     );
+
+
+    /*
+      Полный переход занимает приблизительно
+      1.25 высоты экрана.
+    */
+
+    const flightProgress =
+      clamp(
+        window.scrollY /
+        (
+          window.innerHeight *
+          1.25
+        )
+      );
+
+
+    /*
+      2D-плитка появляется только тогда,
+      когда 3D-тессера уже почти достигла цели.
+    */
+
+    const pixelHandoff =
+      smooth(
+        0.78,
+        0.98,
+        flightProgress
+      );
+
+
+    if (
+      heroCell &&
+      pixelHandoff >
+      0
+    ) {
+      drawFinalCell(
+        heroCell,
+        rect,
+        pixelHandoff
+      );
+    }
+
 
     updateText(
       progress

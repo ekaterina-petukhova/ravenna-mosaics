@@ -20,7 +20,7 @@ const scene =
   new THREE.Scene();
 
 scene.background =
-  new THREE.Color("#020407");
+  null;
 
 
 /* CAMERA */
@@ -42,9 +42,16 @@ const renderer =
   new THREE.WebGLRenderer({
     canvas,
     antialias: true,
-    alpha: false,
+    alpha: true,
+    premultipliedAlpha: true,
     powerPreference: "high-performance"
   });
+
+
+renderer.setClearColor(
+  0x000000,
+  0
+);
 
 renderer.setPixelRatio(
   Math.min(
@@ -416,50 +423,308 @@ canvas.addEventListener(
 
 
 /* SCROLL TRANSITION */
+let flightProgress =
+  0;
 
-function updateScrollEffect() {
-  const distance =
-    Math.min(
-      1,
+let flightBaseY =
+  0;
 
-      window.scrollY /
-      (
-        window.innerHeight *
-        0.9
+let transitionStarted =
+  false;
+
+const transitionRotation = {
+  x: 0,
+  y: 0,
+  z: 0
+};
+
+
+const clamp01 =
+  value =>
+    Math.max(
+      0,
+      Math.min(
+        1,
+        value
       )
     );
 
 
-  const opacity =
-    1 -
-    distance;
+const smoothstep =
+  (
+    start,
+    end,
+    value
+  ) => {
+    const t =
+      clamp01(
+        (
+          value -
+          start
+        ) /
+        (
+          end -
+          start
+        )
+      );
+
+    return (
+      t *
+      t *
+      (
+        3 -
+        2 *
+        t
+      )
+    );
+  };
 
 
-  canvas.style.opacity =
-    String(opacity);
+const mix =
+  (
+    start,
+    end,
+    amount
+  ) =>
+    start +
+    (
+      end -
+      start
+    ) *
+    amount;
+
+
+function updateScrollEffect() {
+  flightProgress =
+    clamp01(
+      window.scrollY /
+      (
+        window.innerHeight *
+        1.25
+      )
+    );
+
+
+  const flight =
+    smoothstep(
+      0,
+      1,
+      flightProgress
+    );
+
+
+  if (
+    flightProgress >
+    0 &&
+    !transitionStarted
+  ) {
+    transitionStarted =
+      true;
+
+    transitionRotation.x =
+      tesseraGroup.rotation.x;
+
+    transitionRotation.y =
+      tesseraGroup.rotation.y;
+
+    transitionRotation.z =
+      tesseraGroup.rotation.z;
+  }
+
+
+  if (
+    flightProgress ===
+    0
+  ) {
+    transitionStarted =
+      false;
+  }
+
+
+  const target =
+    window.__mosaicHeroTarget || {
+      x:
+        window.innerWidth /
+        2,
+
+      y:
+        window.innerHeight /
+        2,
+
+      size:
+        12
+    };
 
 
   /*
-    Preserve the smaller base scale while the
-    object disappears during scrolling.
+    В конце тессера оказывается немного
+    дальше камеры и становится размером
+    с выбранный пиксель мозаики.
   */
 
-  tesseraGroup.scale.setScalar(
-    getHeroScale() *
+  const targetZ =
+    -0.8;
+
+
+  const currentZ =
+    mix(
+      0,
+      targetZ,
+      flight
+    );
+
+
+  const cameraDistance =
+    camera.position.z -
+    currentZ;
+
+
+  const visibleHeight =
+    2 *
+    Math.tan(
+      THREE.MathUtils.degToRad(
+        camera.fov /
+        2
+      )
+    ) *
+    cameraDistance;
+
+
+  const visibleWidth =
+    visibleHeight *
+    camera.aspect;
+
+
+  const targetWorldX =
     (
-      1 -
-      distance * 0.25
+      target.x /
+      window.innerWidth -
+      0.5
+    ) *
+    visibleWidth;
+
+
+  const targetWorldY =
+    camera.position.y +
+    (
+      0.5 -
+      target.y /
+      window.innerHeight
+    ) *
+    visibleHeight;
+
+
+  /*
+    Лёгкая дуга делает движение похожим
+    на полёт, а не на обычное уменьшение.
+    В конечной точке дуга равна нулю.
+  */
+
+  const arc =
+    Math.sin(
+      Math.PI *
+      flight
+    );
+
+
+  tesseraGroup.position.x =
+    mix(
+      0,
+      targetWorldX,
+      flight
+    ) +
+    arc *
+    0.10;
+
+
+  flightBaseY =
+    mix(
+      0,
+      targetWorldY,
+      flight
+    ) +
+    arc *
+    0.16;
+
+
+  tesseraGroup.position.z =
+    currentZ;
+
+
+  const targetScale =
+    Math.max(
+      0.002,
+      target.size *
+      visibleWidth /
+      (
+        window.innerWidth *
+        2.6
+      )
+    );
+
+
+  tesseraGroup.scale.setScalar(
+    mix(
+      getHeroScale(),
+      targetScale,
+      flight
     )
   );
 
 
-  tesseraGroup.position.z =
-    -distance * 2;
+  /*
+    Камень постепенно поворачивается
+    лицевой стороной к экрану.
+  */
+
+  tesseraGroup.rotation.x =
+    mix(
+      transitionRotation.x,
+      0,
+      flight
+    );
+
+
+  tesseraGroup.rotation.y =
+    mix(
+      transitionRotation.y,
+      0,
+      flight
+    );
+
+
+  tesseraGroup.rotation.z =
+    mix(
+      transitionRotation.z,
+      0,
+      flight
+    );
+
+
+  /*
+    Fade начинается только после того,
+    как камень почти достиг пикселя.
+  */
+
+  const opacity =
+    1 -
+    smoothstep(
+      0.78,
+      0.98,
+      flightProgress
+    );
+
+
+  canvas.style.opacity =
+    String(
+      opacity
+    );
 
 
   canvas.classList.toggle(
     "is-hidden",
-    opacity < 0.05
+    opacity <
+    0.03
   );
 }
 
@@ -554,10 +819,16 @@ function animate() {
   */
 
   tesseraGroup.position.y =
+    flightBaseY +
     Math.sin(
-      time * 0.8
+      time *
+      0.8
     ) *
-    0.08;
+    0.08 *
+    (
+      1 -
+      flightProgress
+    );
 
 
   renderer.render(
