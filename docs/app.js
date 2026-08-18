@@ -14,12 +14,9 @@
 
   const loading = document.getElementById("loading");
   const bar = document.getElementById("bar");
-  const step = document.getElementById("step");
-  const kicker = document.getElementById("kicker");
   const title = document.getElementById("title");
   const desc = document.getElementById("desc");
   const copy = document.getElementById("copy");
-  const stats = document.getElementById("stats");
 
 
   // ============================================================
@@ -663,11 +660,7 @@
       cells[0];
 
 
-    if (stats) {
-
-      stats.textContent =
-        `${gridCols} × ${gridRows} grid · ${cells.length.toLocaleString("ru-RU")} cells`;
-    }
+    
 
 
     console.log(
@@ -916,31 +909,20 @@
       const cell
       of cells
     ) {
-
-      if (
-        heroCell &&
-        cell.index ===
-        heroCell.index
-      ) {
-
-        continue;
-      }
-
-
       const bucketIndex =
         Math.min(
-          BUCKET_COUNT -
-          1,
-
+          BUCKET_COUNT - 1,
           Math.max(
             0,
-
             Math.floor(
               cell.start *
               BUCKET_COUNT
             )
           )
         );
+
+
+      
 
 
       cell.bucketIndex =
@@ -2333,20 +2315,16 @@
       0.12
     ) {
 
-      step.textContent =
-        "01 · PIXEL";
 
 
-      kicker.textContent =
-        "One cell";
 
 
       title.textContent =
-        "One glass square.";
+        "Every story begins with one piece of glass";
 
 
       desc.textContent =
-        "A single square cell becomes the first unit of the image.";
+        "Scroll down to continue";
 
 
       copy.style.opacity =
@@ -2369,12 +2347,8 @@
       0.50
     ) {
 
-      step.textContent =
-        "02 · GRID";
+   
 
-
-      kicker.textContent =
-        "Cell by cell";
 
 
       title.textContent =
@@ -2414,12 +2388,7 @@
       0.82
     ) {
 
-      step.textContent =
-        "03 · FIELD";
 
-
-      kicker.textContent =
-        "Structured image";
 
 
       title.textContent =
@@ -2454,12 +2423,7 @@
     }
 
 
-    step.textContent =
-      "04 · PIXEL MOSAIC";
 
-
-    kicker.textContent =
-      "Complete";
 
 
     title.textContent =
@@ -2584,25 +2548,6 @@
       progress,
       rect
     );
-
-
-    if (
-      progress <
-      0.18
-    ) {
-
-      drawHero(
-        progress,
-        rect
-      );
-
-    } else {
-
-      drawHeroFinal(
-        rect
-      );
-    }
-
 
     updateText(
       progress
