@@ -2505,57 +2505,70 @@
   // ============================================================
 
   function updateText(
-    progress
+  progress
+) {
+
+  /*
+    Показываем кнопку перехода к глобусу
+    только ближе к концу scroll-сцены.
+  */
+  if (enterAtlas) {
+    enterAtlas.classList.toggle(
+      "visible",
+      progress > 0.88
+    );
+  }
+
+
+  /*
+    Первый экран
+  */
+  if (
+    progress <
+    0.12
   ) {
-    /*
-      Первый экран
-    */
-
-    if (
-      progress <
-      0.12
-    ) {
-      title.textContent =
-        "Every story begins with a single piece";
-
-      desc.textContent =
-        "Scroll down to continue";
-
-      copy.style.opacity =
-        String(
-          1 -
-          smooth(
-            0.08,
-            0.12,
-            progress
-          )
-        );
-
-      return;
-    }
-
-
-    /*
-      Второй экран:
-      появляется во время сборки мозаики
-      и остаётся до конца сцены.
-    */
 
     title.textContent =
-      "to become a world of colour";
+      "Every story begins with a single piece";
 
     desc.textContent =
-      "";
+      "Scroll down to continue";
 
     copy.style.opacity =
       String(
+        1 -
         smooth(
-          0.14,
-          0.21,
+          0.08,
+          0.12,
           progress
         )
       );
+
+    return;
   }
+
+
+  /*
+    Второй экран:
+    появляется во время сборки мозаики
+    и остаётся до конца сцены.
+  */
+
+  title.textContent =
+    "to become a world of colour";
+
+  desc.textContent =
+    "";
+
+  copy.style.opacity =
+    String(
+      smooth(
+        0.14,
+        0.21,
+        progress
+      )
+    );
+}
 
 
   // ============================================================
