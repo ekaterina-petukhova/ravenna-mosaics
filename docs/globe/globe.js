@@ -6,6 +6,19 @@
   const story = window.MOSAIC_STORY || [];
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
+  const regionAnchors = [
+    { id: 'label-iraq', name: 'Iraq', lat: 33.2, lng: 43.8, type: 'region', start: -3500 },
+    { id: 'label-anatolia', name: 'Anatolia', lat: 39.0, lng: 35.0, type: 'region', start: -900 },
+    { id: 'label-greece', name: 'Greece', lat: 39.2, lng: 22.6, type: 'region', start: -450 },
+    { id: 'label-egypt', name: 'Egypt', lat: 27.2, lng: 30.2, type: 'region', start: -250 },
+    { id: 'label-italy', name: 'Italy', lat: 42.5, lng: 12.6, type: 'region', start: -150 },
+    { id: 'label-nafrica', name: 'North Africa', lat: 33.0, lng: 12.0, type: 'region', start: 50 },
+    { id: 'label-cyprus', name: 'Cyprus', lat: 35.0, lng: 33.0, type: 'region', start: 150 },
+    { id: 'label-levant', name: 'Levant', lat: 32.2, lng: 35.6, type: 'region', start: 500 },
+    { id: 'label-syria', name: 'Syria', lat: 35.0, lng: 38.2, type: 'region', start: 700 },
+    { id: 'label-constantinople', name: 'Byzantine world', lat: 41.2, lng: 27.5, type: 'region', start: 400 }
+  ];
+
   const el = id => document.getElementById(id);
   const globeHost = el('globe');
   const slider = el('yearSlider');
@@ -25,6 +38,7 @@
   let selectedYear = Number(slider.value);
   let storyPlaying = false;
   let storyRun = 0;
+  let selectedSiteId = null;
 
   const formatYear = year => year < 0 ? `${Math.abs(year)} BCE` : `${year} CE`;
 
@@ -38,6 +52,7 @@
   };
 
   const visibleSites = () => sites.filter(site => site.start <= selectedYear);
+
   const visibleConnections = () => {
     if (!toggle.checked) return [];
     return connections
@@ -45,53 +60,73 @@
       .map(link => ({ ...link, source: byId[link.from], target: byId[link.to] }));
   };
 
+  const visibleLabels = () => {
+    const shownSites = visibleSites();
+    const labels = shownSites.filter(site => site.importance >= 5);
+
+    if (shownSites.length <= 8) {
+      labels.push(...shownSites.filter(site => site.importance >= 4 && !labels.some(item => item.id === site.id)));
+    }
+
+    if (selectedSiteId && byId[selectedSiteId] && !labels.some(item => item.id === selectedSiteId)) {
+      labels.push(byId[selectedSiteId]);
+    }
+
+    const regions = regionAnchors.filter(anchor => anchor.start <= selectedYear);
+    return [...regions, ...labels.map(site => ({ ...site, type: 'site' }))];
+  };
+
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
-    // Natural-looking Earth rather than the dark/night texture.
     .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
     .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
     .showAtmosphere(true)
-    .atmosphereColor('#8fc5ff')
-    .atmosphereAltitude(0.14)
+    .showGraticules(true)
+    .atmosphereColor('#5a8cff')
+    .atmosphereAltitude(0.11)
     .pointLat('lat')
     .pointLng('lng')
-    .pointAltitude(site => 0.012 + site.importance * 0.0025)
-    .pointRadius(site => 0.12 + site.importance * 0.025)
-    .pointColor(site => site.id === 'uruk' ? '#e5ba53' : '#f1d27a')
-    .pointLabel(site => `<div style="padding:7px 9px;background:rgba(4,5,8,.92);border:1px solid rgba(255,255,255,.14);border-radius:8px;font-family:Nunito,sans-serif"><strong>${site.name}</strong><br><span style="opacity:.65">${formatYear(site.start)} · ${site.culture}</span></div>`)
-    .onPointClick(site => selectSite(site, true))
+    .pointAltitude(site => site.id === selectedSiteId ? 0.03 : 0.012 + site.importance * 0.002)
+    .pointRadius(site => site.id === selectedSiteId ? 0.2 : 0.08 + site.importance * 0.018)
+    .pointColor(site => site.id === selectedSiteId ? '#ffd86d' : site.id === 'uruk' ? '#e5ba53' : '#f1d27a')
+    .pointLabel(site => `
+      <div style="padding:7px 9px;background:rgba(4,5,8,.94);border:1px solid rgba(255,255,255,.14);border-radius:8px;font-family:Nunito,sans-serif">
+        <strong>${site.name}</strong><br>
+        <span style="opacity:.74">${site.region}</span><br>
+        <span style="opacity:.6">${formatYear(site.start)} · ${site.culture}</span>
+      </div>`)
+    .onPointClick(site => {
+      stopStory();
+      selectSite(site, true);
+    })
     .arcStartLat(link => link.source.lat)
     .arcStartLng(link => link.source.lng)
     .arcEndLat(link => link.target.lat)
     .arcEndLng(link => link.target.lng)
-    .arcColor(() => ['rgba(76,119,255,.08)', 'rgba(113,165,255,.72)'])
-    .arcAltitudeAutoScale(0.22)
-    .arcStroke(0.45)
-    .arcDashLength(0.28)
-    .arcDashGap(0.7)
-    .arcDashAnimateTime(3200)
-    .arcLabel(link => link.label);
+    .arcColor(() => ['rgba(72,116,255,.08)', 'rgba(128,175,255,.78)'])
+    .arcAltitudeAutoScale(0.16)
+    .arcStroke(0.35)
+    .arcDashLength(0.22)
+    .arcDashGap(0.88)
+    .arcDashAnimateTime(3400)
+    .arcLabel(link => link.label)
+    .labelLat('lat')
+    .labelLng('lng')
+    .labelText(item => item.type === 'region' ? item.name : `${item.name}`)
+    .labelSize(item => item.type === 'region' ? 1.15 : item.id === selectedSiteId ? 1.15 : 0.9)
+    .labelAltitude(item => item.type === 'region' ? 0.01 : item.id === selectedSiteId ? 0.05 : 0.03)
+    .labelColor(item => item.type === 'region' ? 'rgba(255,255,255,.5)' : item.id === selectedSiteId ? '#ffe39a' : 'rgba(255,255,255,.88)')
+    .labelResolution(2)
+    .labelDotRadius(item => item.type === 'region' ? 0 : item.id === selectedSiteId ? 0.22 : 0.14)
+    .labelIncludeDot(item => item.type !== 'region');
 
-  const controls = Globe.controls();
-  controls.autoRotate = false;
-  controls.enablePan = false;
-  controls.enableZoom = true;
-  controls.zoomSpeed = 0.9;
-  // Let the visitor zoom in very close, but also pull back to see the whole globe.
-  controls.minDistance = 108;
-  controls.maxDistance = 720;
-
-  const FOCUS_ALTITUDE = 0.72;
-  const DEFAULT_ALTITUDE = 0.96;
-
-  // Open directly over Uruk instead of showing the whole planet.
-  const uruk = byId.uruk;
-  Globe.pointOfView(
-    uruk
-      ? { lat: uruk.lat, lng: uruk.lng, altitude: DEFAULT_ALTITUDE }
-      : { lat: 31.3, lng: 45.6, altitude: DEFAULT_ALTITUDE },
-    0
-  );
+  Globe.controls().autoRotate = false;
+  Globe.controls().enablePan = false;
+  Globe.controls().minDistance = 135;
+  Globe.controls().maxDistance = 290;
+  Globe.controls().rotateSpeed = 0.9;
+  Globe.controls().zoomSpeed = 0.9;
+  Globe.pointOfView({ lat: 36, lng: 18, altitude: 1.78 }, 0);
 
   function refresh() {
     selectedYear = Number(slider.value);
@@ -99,31 +134,49 @@
     const [title, description] = periodFor(selectedYear);
     periodTitle.textContent = title;
     periodDescription.textContent = description;
-    Globe.pointsData(visibleSites());
+
+    const visible = visibleSites();
+    if (selectedSiteId && !visible.some(site => site.id === selectedSiteId)) {
+      selectedSiteId = null;
+    }
+
+    Globe.pointsData(visible);
     Globe.arcsData(visibleConnections());
+    Globe.labelsData(visibleLabels());
   }
 
   function selectSite(site, fly = false, storyTitle = null) {
     if (!site) return;
+    selectedSiteId = site.id;
+
     if (fly) {
-      controls.autoRotate = false;
-      Globe.pointOfView(
-        { lat: site.lat, lng: site.lng, altitude: FOCUS_ALTITUDE },
-        1200
-      );
+      Globe.controls().autoRotate = false;
+      Globe.pointOfView({ lat: site.lat, lng: site.lng, altitude: 1.28 }, 1200);
     }
+
     infoCard.classList.remove('is-hidden');
     cardEra.textContent = storyTitle || `${formatYear(site.start)} · ${site.culture}`;
     cardTitle.textContent = site.name;
     cardText.textContent = site.text;
-    cardMeta.innerHTML = `<span><b>Region:</b> ${site.region}</span><span><b>Technique:</b> ${site.technique}</span><span><b>Visible by:</b> ${formatYear(site.start)}</span>`;
+    cardMeta.innerHTML = `
+      <span><b>Country / region:</b> ${site.region}</span>
+      <span><b>Technique:</b> ${site.technique}</span>
+      <span><b>Visible by:</b> ${formatYear(site.start)}</span>`;
+
     regionLink.hidden = false;
     regionLink.textContent = `Explore ${site.region} →`;
-    regionLink.href = `region.html?region=${encodeURIComponent(site.regionSlug)}&from=${encodeURIComponent(site.id)}`;
+    regionLink.href = `./region.html?region=${encodeURIComponent(site.regionSlug)}&from=${encodeURIComponent(site.id)}`;
+
+    refresh();
   }
 
-  slider.addEventListener('input', () => { stopStory(); refresh(); });
+  slider.addEventListener('input', () => {
+    stopStory();
+    refresh();
+  });
+
   toggle.addEventListener('change', refresh);
+
   document.querySelectorAll('[data-year]').forEach(button => {
     button.addEventListener('click', () => {
       stopStory();
@@ -132,7 +185,11 @@
     });
   });
 
-  closeCard.addEventListener('click', () => infoCard.classList.add('is-hidden'));
+  closeCard.addEventListener('click', () => {
+    selectedSiteId = null;
+    infoCard.classList.add('is-hidden');
+    refresh();
+  });
 
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -142,7 +199,7 @@
     const run = ++storyRun;
     storyButton.classList.add('is-playing');
     storyButton.textContent = 'Ⅱ Pause story';
-    controls.autoRotate = false;
+    Globe.controls().autoRotate = false;
 
     for (const step of story) {
       if (!storyPlaying || run !== storyRun) break;
@@ -172,6 +229,7 @@
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
   }
+
   window.addEventListener('resize', resize);
   resize();
   refresh();

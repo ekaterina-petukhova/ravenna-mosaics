@@ -12,60 +12,74 @@
 </head>
 <body>
   <main class="atlas-shell">
-    <header class="atlas-header">
-      <a class="back-link" href="index.html">← Mosaic Mosaic</a>
-      <div class="atlas-title">
+    <aside class="atlas-sidebar">
+      <div class="sidebar-top">
+        <a class="back-link" href="../index.html">← Mosaic Mosaic</a>
+        <button id="storyButton" class="story-button" type="button">▶ Story mode</button>
+      </div>
+
+      <header class="atlas-title">
         <span>Interactive atlas</span>
         <h1>5,000 years of mosaic</h1>
-      </div>
-      <button id="storyButton" class="story-button" type="button">▶ Story mode</button>
-    </header>
+        <p>Follow how mosaic techniques moved across regions, cities and empires through time.</p>
+      </header>
 
-    <section class="globe-stage">
-      <div id="globe"></div>
-
-      <aside id="infoCard" class="info-card" aria-live="polite">
-        <button id="closeCard" class="close-card" type="button" aria-label="Close">×</button>
-        <div id="cardEra" class="card-era">Explore</div>
+      <section id="infoCard" class="info-card" aria-live="polite">
+        <div class="card-topline">
+          <div id="cardEra" class="card-era">Explore the atlas</div>
+          <button id="closeCard" class="close-card" type="button" aria-label="Close">×</button>
+        </div>
         <h2 id="cardTitle">Choose a place</h2>
-        <p id="cardText">Drag to rotate, scroll or pinch to zoom, and select a mosaic centre to explore its place in the wider history.</p>
+        <p id="cardText">Select a mosaic centre to see when it emerged, where it belongs geographically and how it connects to the wider history of mosaic.</p>
         <div id="cardMeta" class="card-meta"></div>
         <a id="regionLink" class="region-link" href="#" hidden>Explore region →</a>
-      </aside>
+      </section>
 
-      <div class="legend">
-        <span><i class="legend-dot"></i> Mosaic centre</span>
-        <span><i class="legend-line"></i> Historical connection</span>
-      </div>
-    </section>
-
-    <section class="timeline-panel">
-      <div class="timeline-topline">
-        <div>
-          <span class="eyebrow">Time</span>
-          <strong id="yearLabel">3500 BCE</strong>
+      <section class="timeline-panel">
+        <div class="timeline-heading">
+          <div>
+            <span class="eyebrow">Time</span>
+            <strong id="yearLabel">3500 BCE</strong>
+          </div>
+          <label class="connection-toggle">
+            <input id="connectionsToggle" type="checkbox" checked />
+            <span>Show connections</span>
+          </label>
         </div>
-        <label class="connection-toggle">
-          <input id="connectionsToggle" type="checkbox" checked />
-          <span>Show connections</span>
-        </label>
-      </div>
 
-      <input id="yearSlider" class="year-slider" type="range" min="-3500" max="1200" step="25" value="-3500" />
+        <input id="yearSlider" class="year-slider" type="range" min="-3500" max="1200" step="25" value="-3500" />
 
-      <div class="era-buttons" role="group" aria-label="Historical periods">
-        <button type="button" data-year="-3500">Origins</button>
-        <button type="button" data-year="-700">Early Mediterranean</button>
-        <button type="button" data-year="-350">Greek & Hellenistic</button>
-        <button type="button" data-year="150">Roman world</button>
-        <button type="button" data-year="550">Late Antique & Byzantine</button>
-        <button type="button" data-year="1100">Medieval</button>
-      </div>
+        <div class="era-buttons" role="group" aria-label="Historical periods">
+          <button type="button" data-year="-3500">Origins</button>
+          <button type="button" data-year="-700">Early Mediterranean</button>
+          <button type="button" data-year="-350">Greek &amp; Hellenistic</button>
+          <button type="button" data-year="150">Roman world</button>
+          <button type="button" data-year="550">Late Antique &amp; Byzantine</button>
+          <button type="button" data-year="1100">Medieval</button>
+        </div>
 
-      <div class="timeline-caption">
-        <span id="periodTitle">The first experiments</span>
-        <p id="periodDescription">Begin in Mesopotamia, where architectural surfaces were decorated with patterned clay cones in the fourth millennium BCE.</p>
+        <div class="timeline-caption">
+          <span id="periodTitle">The first experiments</span>
+          <p id="periodDescription">Begin in Mesopotamia, where architectural surfaces were decorated with patterned clay cones in the fourth millennium BCE.</p>
+        </div>
+      </section>
+
+      <section class="legend-panel">
+        <div class="legend-heading">How to read the globe</div>
+        <div class="legend-list">
+          <span><i class="legend-dot"></i> Mosaic centre</span>
+          <span><i class="legend-line"></i> Historical connection</span>
+          <span><i class="legend-label"></i> Region / country label</span>
+        </div>
+        <p class="legend-note">Drag to rotate, scroll to zoom, or start Story mode for a guided journey.</p>
+      </section>
+    </aside>
+
+    <section class="globe-stage">
+      <div class="globe-wrap">
+        <div id="globe"></div>
       </div>
+      <div class="globe-vignette"></div>
     </section>
   </main>
 
