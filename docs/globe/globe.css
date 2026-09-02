@@ -261,7 +261,7 @@ a { color: inherit; }
 
 .globe-wrap {
   position: absolute;
-  inset: -7% -24% -14% 1%;
+  inset: -18% -38% -24% -8%;
 }
 
 #globe {
@@ -285,7 +285,7 @@ a { color: inherit; }
     grid-template-columns: minmax(320px, 38vw) 1fr;
   }
   .globe-wrap {
-    inset: -3% -34% -10% -6%;
+    inset: -14% -44% -20% -12%;
   }
 }
 
@@ -319,4 +319,82 @@ a { color: inherit; }
   .globe-wrap {
     inset: -8% -10% -14% -10%;
   }
+}
+
+
+/* =========================================================
+   GLOBE LABELS
+   ========================================================= */
+
+.globe-label {
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+.globe-label--region {
+  color: rgba(255,255,255,.76);
+  font-family: Nunito, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  text-shadow:
+    0 1px 2px rgba(0,0,0,.95),
+    0 0 8px rgba(0,0,0,.88),
+    0 0 16px rgba(0,0,0,.62);
+}
+
+.globe-label--city {
+  display: grid;
+  gap: 1px;
+  padding: 5px 8px 6px;
+  color: #fff;
+  background: rgba(3,5,8,.74);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 7px;
+  box-shadow:
+    0 4px 18px rgba(0,0,0,.36),
+    inset 0 0 0 1px rgba(0,0,0,.18);
+  backdrop-filter: blur(6px);
+}
+
+.globe-label__city {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: .015em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9);
+}
+
+.globe-label__country {
+  color: rgba(255,255,255,.68);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.globe-label--city.is-selected {
+  border-color: rgba(239,216,141,.72);
+  background: rgba(8,8,8,.9);
+  box-shadow:
+    0 0 0 1px rgba(208,164,60,.22),
+    0 7px 26px rgba(0,0,0,.48);
+}
+
+.globe-label--city.is-selected .globe-label__city {
+  color: #ffe39a;
+  font-size: 14px;
+}
+
+@media (min-width: 1450px) {
+  .globe-label--region { font-size: 13px; }
+  .globe-label__city { font-size: 14px; }
+  .globe-label__country { font-size: 10px; }
 }

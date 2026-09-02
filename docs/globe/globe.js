@@ -7,16 +7,16 @@
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
   const regionAnchors = [
-    { id: 'label-iraq', name: 'Iraq', lat: 33.2, lng: 43.8, type: 'region', start: -3500 },
-    { id: 'label-anatolia', name: 'Anatolia', lat: 39.0, lng: 35.0, type: 'region', start: -900 },
-    { id: 'label-greece', name: 'Greece', lat: 39.2, lng: 22.6, type: 'region', start: -450 },
-    { id: 'label-egypt', name: 'Egypt', lat: 27.2, lng: 30.2, type: 'region', start: -250 },
-    { id: 'label-italy', name: 'Italy', lat: 42.5, lng: 12.6, type: 'region', start: -150 },
-    { id: 'label-nafrica', name: 'North Africa', lat: 33.0, lng: 12.0, type: 'region', start: 50 },
-    { id: 'label-cyprus', name: 'Cyprus', lat: 35.0, lng: 33.0, type: 'region', start: 150 },
-    { id: 'label-levant', name: 'Levant', lat: 32.2, lng: 35.6, type: 'region', start: 500 },
-    { id: 'label-syria', name: 'Syria', lat: 35.0, lng: 38.2, type: 'region', start: 700 },
-    { id: 'label-constantinople', name: 'Byzantine world', lat: 41.2, lng: 27.5, type: 'region', start: 400 }
+    { id: 'label-iraq', name: 'IRAQ', lat: 33.7, lng: 43.3, type: 'region', start: -3500 },
+    { id: 'label-anatolia', name: 'ANATOLIA', lat: 39.0, lng: 36.0, type: 'region', start: -900 },
+    { id: 'label-greece', name: 'GREECE', lat: 38.3, lng: 21.4, type: 'region', start: -450 },
+    { id: 'label-egypt', name: 'EGYPT', lat: 26.4, lng: 29.4, type: 'region', start: -250 },
+    { id: 'label-italy', name: 'ITALY', lat: 42.2, lng: 10.8, type: 'region', start: -150 },
+    { id: 'label-nafrica', name: 'NORTH AFRICA', lat: 32.2, lng: 8.5, type: 'region', start: 50 },
+    { id: 'label-cyprus', name: 'CYPRUS', lat: 34.6, lng: 32.5, type: 'region', start: 150 },
+    { id: 'label-levant', name: 'LEVANT', lat: 31.6, lng: 36.0, type: 'region', start: 500 },
+    { id: 'label-syria', name: 'SYRIA', lat: 35.2, lng: 39.4, type: 'region', start: 700 },
+    { id: 'label-byzantine', name: 'BYZANTINE WORLD', lat: 43.0, lng: 30.0, type: 'region', start: 400 }
   ];
 
   const el = id => document.getElementById(id);
@@ -62,18 +62,35 @@
 
   const visibleLabels = () => {
     const shownSites = visibleSites();
+
+    // Keep the globe readable: show only the most important cities by default.
     const labels = shownSites.filter(site => site.importance >= 5);
 
-    if (shownSites.length <= 8) {
-      labels.push(...shownSites.filter(site => site.importance >= 4 && !labels.some(item => item.id === site.id)));
+    // When there are only a few sites in an early period, include importance 4 too.
+    if (shownSites.length <= 6) {
+      labels.push(
+        ...shownSites.filter(
+          site => site.importance >= 4 &&
+          !labels.some(item => item.id === site.id)
+        )
+      );
     }
 
-    if (selectedSiteId && byId[selectedSiteId] && !labels.some(item => item.id === selectedSiteId)) {
+    // A selected city is always labelled.
+    if (
+      selectedSiteId &&
+      byId[selectedSiteId] &&
+      !labels.some(item => item.id === selectedSiteId)
+    ) {
       labels.push(byId[selectedSiteId]);
     }
 
     const regions = regionAnchors.filter(anchor => anchor.start <= selectedYear);
-    return [...regions, ...labels.map(site => ({ ...site, type: 'site' }))];
+
+    return [
+      ...regions,
+      ...labels.map(site => ({ ...site, type: 'site' }))
+    ];
   };
 
   const Globe = window.Globe()(globeHost)
@@ -110,15 +127,39 @@
     .arcDashGap(0.88)
     .arcDashAnimateTime(3400)
     .arcLabel(link => link.label)
-    .labelLat('lat')
-    .labelLng('lng')
-    .labelText(item => item.type === 'region' ? item.name : `${item.name}`)
-    .labelSize(item => item.type === 'region' ? 1.15 : item.id === selectedSiteId ? 1.15 : 0.9)
-    .labelAltitude(item => item.type === 'region' ? 0.01 : item.id === selectedSiteId ? 0.05 : 0.03)
-    .labelColor(item => item.type === 'region' ? 'rgba(255,255,255,.5)' : item.id === selectedSiteId ? '#ffe39a' : 'rgba(255,255,255,.88)')
-    .labelResolution(2)
-    .labelDotRadius(item => item.type === 'region' ? 0 : item.id === selectedSiteId ? 0.22 : 0.14)
-    .labelIncludeDot(item => item.type !== 'region');
+    ;
+
+  // Crisp HTML labels are much easier to read than the default 3D text.
+  if (typeof Globe.htmlElementsData === 'function') {
+    Globe
+      .htmlLat('lat')
+      .htmlLng('lng')
+      .htmlAltitude(item => item.type === 'region' ? 0.012 : item.id === selectedSiteId ? 0.045 : 0.03)
+      .htmlElement(item => {
+        const node = document.createElement('div');
+
+        if (item.type === 'region') {
+          node.className = 'globe-label globe-label--region';
+          node.textContent = item.name;
+        } else {
+          node.className =
+            'globe-label globe-label--city' +
+            (item.id === selectedSiteId ? ' is-selected' : '');
+
+          const city = document.createElement('span');
+          city.className = 'globe-label__city';
+          city.textContent = item.name;
+
+          const country = document.createElement('span');
+          country.className = 'globe-label__country';
+          country.textContent = item.region;
+
+          node.append(city, country);
+        }
+
+        return node;
+      });
+  }
 
   Globe.controls().autoRotate = false;
   Globe.controls().enablePan = false;
@@ -126,7 +167,7 @@
   Globe.controls().maxDistance = 290;
   Globe.controls().rotateSpeed = 0.9;
   Globe.controls().zoomSpeed = 0.9;
-  Globe.pointOfView({ lat: 36, lng: 18, altitude: 1.78 }, 0);
+  Globe.pointOfView({ lat: 36, lng: 20, altitude: 1.42 }, 0);
 
   function refresh() {
     selectedYear = Number(slider.value);
@@ -142,7 +183,25 @@
 
     Globe.pointsData(visible);
     Globe.arcsData(visibleConnections());
-    Globe.labelsData(visibleLabels());
+
+    const labels = visibleLabels();
+
+    if (typeof Globe.htmlElementsData === 'function') {
+      Globe.htmlElementsData(labels);
+    } else if (typeof Globe.labelsData === 'function') {
+      // Fallback for older Globe.gl builds.
+      Globe
+        .labelLat('lat')
+        .labelLng('lng')
+        .labelText(item => item.name)
+        .labelSize(item => item.type === 'region' ? 0.52 : 0.62)
+        .labelAltitude(item => item.type === 'region' ? 0.012 : 0.032)
+        .labelColor(item => item.type === 'region' ? 'rgba(255,255,255,.72)' : '#ffffff')
+        .labelResolution(4)
+        .labelIncludeDot(item => item.type !== 'region')
+        .labelDotRadius(item => item.type === 'region' ? 0 : 0.11)
+        .labelsData(labels);
+    }
   }
 
   function selectSite(site, fly = false, storyTitle = null) {
@@ -151,7 +210,7 @@
 
     if (fly) {
       Globe.controls().autoRotate = false;
-      Globe.pointOfView({ lat: site.lat, lng: site.lng, altitude: 1.28 }, 1200);
+      Globe.pointOfView({ lat: site.lat, lng: site.lng, altitude: 1.08 }, 1200);
     }
 
     infoCard.classList.remove('is-hidden');
