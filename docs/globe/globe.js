@@ -47,11 +47,12 @@
 
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
-    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg')
+    // Natural-looking Earth rather than the dark/night texture.
+    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
     .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
     .showAtmosphere(true)
-    .atmosphereColor('#3152a8')
-    .atmosphereAltitude(0.12)
+    .atmosphereColor('#8fc5ff')
+    .atmosphereAltitude(0.14)
     .pointLat('lat')
     .pointLng('lng')
     .pointAltitude(site => 0.012 + site.importance * 0.0025)
@@ -71,12 +72,26 @@
     .arcDashAnimateTime(3200)
     .arcLabel(link => link.label);
 
-  Globe.controls().autoRotate = true;
-  Globe.controls().autoRotateSpeed = 0.32;
-  Globe.controls().enablePan = false;
-  Globe.controls().minDistance = 160;
-  Globe.controls().maxDistance = 430;
-  Globe.pointOfView({ lat: 33, lng: 25, altitude: 2.2 }, 0);
+  const controls = Globe.controls();
+  controls.autoRotate = false;
+  controls.enablePan = false;
+  controls.enableZoom = true;
+  controls.zoomSpeed = 0.9;
+  // Let the visitor zoom in very close, but also pull back to see the whole globe.
+  controls.minDistance = 108;
+  controls.maxDistance = 720;
+
+  const FOCUS_ALTITUDE = 0.72;
+  const DEFAULT_ALTITUDE = 0.96;
+
+  // Open directly over Uruk instead of showing the whole planet.
+  const uruk = byId.uruk;
+  Globe.pointOfView(
+    uruk
+      ? { lat: uruk.lat, lng: uruk.lng, altitude: DEFAULT_ALTITUDE }
+      : { lat: 31.3, lng: 45.6, altitude: DEFAULT_ALTITUDE },
+    0
+  );
 
   function refresh() {
     selectedYear = Number(slider.value);
@@ -91,8 +106,11 @@
   function selectSite(site, fly = false, storyTitle = null) {
     if (!site) return;
     if (fly) {
-      Globe.controls().autoRotate = false;
-      Globe.pointOfView({ lat: site.lat, lng: site.lng, altitude: 1.55 }, 1200);
+      controls.autoRotate = false;
+      Globe.pointOfView(
+        { lat: site.lat, lng: site.lng, altitude: FOCUS_ALTITUDE },
+        1200
+      );
     }
     infoCard.classList.remove('is-hidden');
     cardEra.textContent = storyTitle || `${formatYear(site.start)} · ${site.culture}`;
@@ -124,7 +142,7 @@
     const run = ++storyRun;
     storyButton.classList.add('is-playing');
     storyButton.textContent = 'Ⅱ Pause story';
-    Globe.controls().autoRotate = false;
+    controls.autoRotate = false;
 
     for (const step of story) {
       if (!storyPlaying || run !== storyRun) break;
