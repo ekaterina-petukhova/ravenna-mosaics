@@ -12,6 +12,9 @@
     desynchronized: true
   });
 
+  const enterAtlas =
+    document.getElementById("enter-atlas");
+
   const loading = document.getElementById("loading");
   const bar = document.getElementById("bar");
   const title = document.getElementById("title");
@@ -2504,23 +2507,19 @@
   function updateText(
     progress
   ) {
+    /*
+      Первый экран
+    */
 
     if (
       progress <
       0.12
     ) {
-
-
-
-
-
       title.textContent =
-        "Every story begins with one piece of glass";
-
+        "Every story begins with a single piece";
 
       desc.textContent =
         "Scroll down to continue";
-
 
       copy.style.opacity =
         String(
@@ -2532,108 +2531,27 @@
           )
         );
 
-
       return;
     }
 
 
-    if (
-      progress <
-      0.50
-    ) {
-
-   
-
-
-
-      title.textContent =
-        "The pixel mosaic begins to assemble.";
-
-
-      desc.textContent =
-        "Each grid cell is coloured from the tessera data in 04_mosaic_ultra.json.";
-
-
-      copy.style.opacity =
-        String(
-
-          smooth(
-            0.16,
-            0.22,
-            progress
-          ) *
-
-          (
-            1 -
-            smooth(
-              0.40,
-              0.47,
-              progress
-            )
-          )
-        );
-
-
-      return;
-    }
-
-
-    if (
-      progress <
-      0.82
-    ) {
-
-
-
-
-      title.textContent =
-        "A regular grid becomes an ornament.";
-
-
-      desc.textContent =
-        "The geometry is simplified into a strict N × M cell structure.";
-
-
-      copy.style.opacity =
-        String(
-
-          smooth(
-            0.55,
-            0.62,
-            progress
-          ) *
-
-          (
-            1 -
-            smooth(
-              0.72,
-              0.79,
-              progress
-            )
-          )
-        );
-
-
-      return;
-    }
-
-
-
-
+    /*
+      Второй экран:
+      появляется во время сборки мозаики
+      и остаётся до конца сцены.
+    */
 
     title.textContent =
-      "The image emerges from the grid.";
-
+      "to become a world of colour";
 
     desc.textContent =
-      "A full pixel-art reinterpretation based on tessera centre coordinates and colours.";
-
+      "";
 
     copy.style.opacity =
       String(
         smooth(
-          0.87,
-          0.94,
+          0.14,
+          0.21,
           progress
         )
       );

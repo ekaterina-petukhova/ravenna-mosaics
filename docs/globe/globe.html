@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mosaic Atlas — Through Time</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./globe.css" />
+  <script src="https://unpkg.com/globe.gl"></script>
+</head>
+<body>
+  <main class="atlas-shell">
+    <header class="atlas-header">
+      <a class="back-link" href="index.html">← Mosaic Mosaic</a>
+      <div class="atlas-title">
+        <span>Interactive atlas</span>
+        <h1>5,000 years of mosaic</h1>
+      </div>
+      <button id="storyButton" class="story-button" type="button">▶ Story mode</button>
+    </header>
+
+    <section class="globe-stage">
+      <div id="globe"></div>
+
+      <aside id="infoCard" class="info-card" aria-live="polite">
+        <button id="closeCard" class="close-card" type="button" aria-label="Close">×</button>
+        <div id="cardEra" class="card-era">Explore</div>
+        <h2 id="cardTitle">Choose a place</h2>
+        <p id="cardText">Rotate the globe and select a mosaic centre to see when it emerged and how it connects to the wider history.</p>
+        <div id="cardMeta" class="card-meta"></div>
+        <a id="regionLink" class="region-link" href="#" hidden>Explore region →</a>
+      </aside>
+
+      <div class="legend">
+        <span><i class="legend-dot"></i> Mosaic centre</span>
+        <span><i class="legend-line"></i> Historical connection</span>
+      </div>
+    </section>
+
+    <section class="timeline-panel">
+      <div class="timeline-topline">
+        <div>
+          <span class="eyebrow">Time</span>
+          <strong id="yearLabel">3500 BCE</strong>
+        </div>
+        <label class="connection-toggle">
+          <input id="connectionsToggle" type="checkbox" checked />
+          <span>Show connections</span>
+        </label>
+      </div>
+
+      <input id="yearSlider" class="year-slider" type="range" min="-3500" max="1200" step="25" value="-3500" />
+
+      <div class="era-buttons" role="group" aria-label="Historical periods">
+        <button type="button" data-year="-3500">Origins</button>
+        <button type="button" data-year="-700">Early Mediterranean</button>
+        <button type="button" data-year="-350">Greek & Hellenistic</button>
+        <button type="button" data-year="150">Roman world</button>
+        <button type="button" data-year="550">Late Antique & Byzantine</button>
+        <button type="button" data-year="1100">Medieval</button>
+      </div>
+
+      <div class="timeline-caption">
+        <span id="periodTitle">The first experiments</span>
+        <p id="periodDescription">Begin in Mesopotamia, where architectural surfaces were decorated with patterned clay cones in the fourth millennium BCE.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="./mosaic-sites.js"></script>
+  <script src="./globe.js"></script>
+</body>
+</html>

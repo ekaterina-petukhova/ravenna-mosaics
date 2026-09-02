@@ -266,6 +266,34 @@
       color:  #777;;
       transform: translateY(20px);
     }
+
+    #enter-atlas {
+      display: inline-block;
+      margin-top: 26px;
+
+      color: #cfad54;
+      text-decoration: none;
+
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+
+      opacity: 0;
+      transform: translateY(12px);
+
+      pointer-events: none;
+
+      transition:
+        opacity .7s ease,
+        transform .7s ease;
+    }
+
+    #enter-atlas.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    
   </style>
   <script type="importmap">
     {
@@ -296,18 +324,18 @@
 
     <div id="copy">
 
-      
-
       <h1 id="title">
-        Every story begins with one piece of glass
+        Every story begins with a single piece
       </h1>
 
       <p id="desc">
-        Прокручивай — мозаика будет собираться
-        камушек за камушком.
+        Scroll down to continue
       </p>
-
+       <a href="./globe/globe.html" id="enter-atlas">
+    Explore the mosaic world →
+        </a>
     </div>
+   
 
     
 

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mosaic Region</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#050609;color:#fff;font-family:Nunito,system-ui,sans-serif} a{color:#d9bc67;text-decoration:none}.wrap{max-width:1120px;margin:auto;padding:28px}.hero{min-height:38vh;display:flex;flex-direction:column;justify-content:flex-end;padding:70px 0 34px;border-bottom:1px solid rgba(255,255,255,.12)}.eyebrow{color:#d0a43c;text-transform:uppercase;letter-spacing:.22em;font-size:10px}.hero h1{font:400 clamp(48px,8vw,105px)/.88 Georgia,serif;margin:8px 0 14px}.hero p{max-width:720px;color:rgba(255,255,255,.55);font-size:15px;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:30px 0 80px}.card{border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:18px;background:rgba(255,255,255,.025)}.card h2{font:400 24px Georgia,serif;margin:7px 0}.card p{color:rgba(255,255,255,.55);font-size:12px;line-height:1.5}.meta{color:#d0a43c;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="globe.html">← Back to globe</a>
+    <section class="hero">
+      <span class="eyebrow">Regional atlas</span>
+      <h1 id="regionTitle">Region</h1>
+      <p id="regionIntro">Mosaic sites in this region.</p>
+    </section>
+    <section id="regionGrid" class="grid"></section>
+  </div>
+  <script src="./mosaic-sites.js"></script>
+  <script>
+    const params=new URLSearchParams(location.search); const slug=params.get('region')||'italy';
+    const names={italy:'Italy',iraq:'Iraq',greece:'Greece',turkey:'Turkey / Anatolia',egypt:'Egypt',tunisia:'Tunisia / North Africa',cyprus:'Cyprus',jordan:'Jordan',palestine:'Palestine / Jericho',syria:'Syria'};
+    const title=names[slug]||slug.replace(/-/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+    document.getElementById('regionTitle').textContent=title;
+    document.getElementById('regionIntro').textContent=`Explore the mosaic centres currently represented in the atlas for ${title}. This page is the next layer: World → Region → City → Monument.`;
+    const sites=(window.MOSAIC_SITES||[]).filter(s=>s.regionSlug===slug);
+    const fmt=y=>y<0?`${Math.abs(y)} BCE`:`${y} CE`;
+    document.getElementById('regionGrid').innerHTML=sites.length?sites.map(s=>`<article class="card"><div class="meta">${fmt(s.start)} · ${s.culture}</div><h2>${s.name}</h2><p>${s.text}</p><p><b>${s.technique}</b></p></article>`).join(''):'<p>No sites have been added to this regional dataset yet.</p>';
+  </script>
+</body>
+</html>
