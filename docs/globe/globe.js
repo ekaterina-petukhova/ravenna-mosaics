@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  // The 50m Natural Earth boundaries are a good quality/performance balance
-  // for this Mediterranean atlas. The 10m file is too large for a first load.
+  // The 110m Natural Earth file keeps the first load small and reliable.
+  // The vector edges stay sharp when zoomed, unlike a larger bitmap.
   const COUNTRY_GEOJSON_URL =
-    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson';
+    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson';
 
   const sites = window.MOSAIC_SITES || [];
   const connections = window.MOSAIC_CONNECTIONS || [];
@@ -12,12 +12,26 @@
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
   const GLOBE_RADIUS = 100; // matches three-globe's default globe radius
-  const BASE_ALTITUDE = 1.78; // matches the initial pointOfView below
+  const BASE_ALTITUDE = 1.55; // matches the initial pointOfView below
   const BASE_ROTATE_SPEED = 0.85;
   const BASE_ZOOM_SPEED = 1.15;
   const REFERENCE_HEIGHT = 700; // desktop-ish canvas height rotateSpeed was tuned against
   let currentAltitude = BASE_ALTITUDE;
   let labelDeclutterTimer = null;
+
+  const countryPalette = ['#6f8274', '#7f8d76', '#8e9071', '#748b83', '#9a8968'];
+  const countryColor = feature => {
+    const name =
+      feature?.properties?.NAME_LONG ||
+      feature?.properties?.ADMIN ||
+      feature?.properties?.NAME ||
+      '';
+    const hash = [...name].reduce(
+      (value, character) => (value * 31 + character.charCodeAt(0)) | 0,
+      0
+    );
+    return countryPalette[Math.abs(hash) % countryPalette.length];
+  };
 
   // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
   // by finger/mouse travel distance. On a short mobile viewport the same
@@ -279,40 +293,39 @@
 
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
-    .globeImageUrl(
-      // NASA's 5400 × 2700 Blue Marble base map gives the texture more room
-      // before it softens, while the vector country layer handles the detail.
-      'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/january/world.200401.3x5400x2700.jpg'
-    )
     .showAtmosphere(true)
     .showGraticules(false)
-    .atmosphereColor('#5a8cff')
-    .atmosphereAltitude(0.11)
+    .atmosphereColor('#76aaa2')
+    .atmosphereAltitude(0.06)
     .onGlobeReady(() => {
       const renderer = Globe.renderer();
       if (renderer) {
         // The real cause of the blur: without this, the canvas can render
         // at a lower resolution than the screen's actual pixel density,
         // softening everything — text, pins, and the globe texture alike.
-        // A 1.5x cap keeps text and pins crisp without creating a huge
-        // WebGL framebuffer on Retina/4K displays.
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        // A 1.25x cap avoids creating a huge WebGL framebuffer on
+        // Retina/4K displays while preserving good edge quality.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
       }
 
       const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
-      if (material && material.map && renderer) {
-        material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        material.map.needsUpdate = true;
+      if (material) {
+        // A solid vector globe stays crisp and avoids downloading a large
+        // raster Earth image just to enlarge it during zoom.
+        material.map = null;
+        material.bumpMap = null;
+        if (material.color) material.color.set('#0b1c25');
+        if (material.emissive) material.emissive.set('#061018');
+        material.needsUpdate = true;
       }
     })
 
     .polygonsData([])
-    // Opaque vector land masks the softest part of the bitmap and keeps
-    // borders/coastlines sharp at every zoom level.
-    .polygonCapColor(() => 'rgba(24,41,42,.96)')
-    .polygonSideColor(() => 'rgba(8,16,21,.98)')
-    .polygonStrokeColor(() => 'rgba(221,198,139,.42)')
-    .polygonAltitude(0.006)
+    // A vector-only globe stays sharp at every zoom and remains lightweight.
+    .polygonCapColor(countryColor)
+    .polygonSideColor(() => 'rgba(26,35,35,.98)')
+    .polygonStrokeColor(() => 'rgba(244,226,178,.55)')
+    .polygonAltitude(0.004)
     .polygonsTransitionDuration(0)
 
     .htmlElementsData([])
@@ -431,7 +444,7 @@
   updatePinScale(currentAltitude);
 
   Globe.pointOfView(
-    { lat: 36, lng: 18, altitude: 1.78 },
+    { lat: 36, lng: 18, altitude: BASE_ALTITUDE },
     0
   );
 
@@ -443,9 +456,21 @@
       }
 
       const geojson = await response.json();
-      Globe.polygonsData(
-        Array.isArray(geojson.features) ? geojson.features : []
-      );
+      const inAtlas = coordinates => {
+        if (!Array.isArray(coordinates) || !coordinates.length) return false;
+        if (typeof coordinates[0] === 'number') {
+          const [lng, lat] = coordinates;
+          return lng >= -20 && lng <= 60 && lat >= 10 && lat <= 58;
+        }
+        return coordinates.some(inAtlas);
+      };
+      const atlasFeatures = Array.isArray(geojson.features)
+        ? geojson.features.filter(feature =>
+            inAtlas(feature.geometry?.coordinates)
+          )
+        : [];
+
+      Globe.polygonsData(atlasFeatures);
     } catch (error) {
       console.warn('Could not load country borders:', error);
     }
@@ -578,7 +603,7 @@
     Globe.controls().rotateSpeed = rotateSpeedForViewport();
     const renderer = Globe.renderer();
     if (renderer) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
     }
     applyLabelDeclutter();
   }
