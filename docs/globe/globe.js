@@ -1,8 +1,10 @@
 (() => {
   'use strict';
 
+  // Natural Earth's 10m boundaries keep coastlines and borders crisp when
+  // the camera moves in. The old file was noticeably coarse at close range.
   const COUNTRY_GEOJSON_URL =
-    'https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json';
+    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson';
 
   const sites = window.MOSAIC_SITES || [];
   const connections = window.MOSAIC_CONNECTIONS || [];
@@ -17,18 +19,14 @@
   let currentAltitude = BASE_ALTITUDE;
   let labelDeclutterTimer = null;
 
-  // Two independent reasons rotation speed needs to scale, combined:
-  // 1) OrbitControls normalizes drag rotation by canvas pixel HEIGHT, so a
-  //    short mobile viewport turns the same swipe into a bigger rotation.
-  // 2) Rotating by a fixed angle sweeps a much bigger fraction of the
-  //    screen once zoomed in — you're seeing a smaller slice of the globe,
-  //    so the same motion looks much faster. (This is what globe.gl's own
-  //    internal, since-overridden logic was compensating for.)
-  const computeRotateSpeed = () => {
+  // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
+  // by finger/mouse travel distance. On a short mobile viewport the same
+  // physical swipe covers a much bigger fraction of the screen, so the same
+  // rotateSpeed value spins the globe far faster. Scale it down accordingly.
+  const rotateSpeedForViewport = () => {
     const height = globeHost.clientHeight || REFERENCE_HEIGHT;
-    const viewportFactor = Math.max(0.35, Math.min(1, height / REFERENCE_HEIGHT));
-    const altitudeFactor = Math.max(0.18, Math.min(1.3, currentAltitude / BASE_ALTITUDE));
-    return BASE_ROTATE_SPEED * viewportFactor * altitudeFactor;
+    const factor = Math.min(1, height / REFERENCE_HEIGHT);
+    return BASE_ROTATE_SPEED * Math.max(0.35, factor);
   };
 
   const regionAnchors = [
@@ -139,25 +137,10 @@
 
   const visibleLabels = () => {
     const shownSites = visibleSites();
-    const labels = shownSites.filter(site => site.importance >= 5);
-
-    if (shownSites.length <= 8) {
-      shownSites
-        .filter(site => site.importance >= 4)
-        .forEach(site => {
-          if (!labels.some(item => item.id === site.id)) {
-            labels.push(site);
-          }
-        });
-    }
-
-    if (
-      selectedSiteId &&
-      byId[selectedSiteId] &&
-      !labels.some(item => item.id === selectedSiteId)
-    ) {
-      labels.push(byId[selectedSiteId]);
-    }
+    // Keep every candidate available to the declutter pass. The pass decides
+    // how many names can fit at this zoom rather than hiding useful labels
+    // just because the timeline currently contains many sites.
+    const labels = shownSites.filter(shouldShowSiteLabel);
 
     const regions = regionAnchors.filter(
       anchor => anchor.start <= selectedYear
@@ -167,6 +150,19 @@
       ...regions,
       ...labels.map(site => ({ ...site, type: 'site' }))
     ];
+  };
+
+  const shouldShowSiteLabel = site =>
+    site.id === selectedSiteId ||
+    site.importance >= (currentAltitude <= 1.18 ? 4 : 5);
+
+  const setSiteLabelVisibility = visibleIds => {
+    globeHost.querySelectorAll('[data-site-id]').forEach(marker => {
+      marker.classList.toggle(
+        'has-label',
+        visibleIds.has(marker.dataset.siteId)
+      );
+    });
   };
 
   const altitudeToLabelScale = altitude => {
@@ -205,7 +201,8 @@
     const height = globeHost.clientHeight;
 
     if (!candidates.length || !width || !height) {
-      Globe.labelsData(candidates);
+      Globe.labelsData(candidates.filter(item => item.type === 'region'));
+      setSiteLabelVisibility(new Set());
       return;
     }
 
@@ -213,6 +210,7 @@
     const regionPriority = 260 + Math.max(0, currentAltitude - 0.5) * 500;
 
     const scored = candidates
+      .filter(item => item.type === 'region' || shouldShowSiteLabel(item))
       .map(item => {
         const altitude = item.type === 'region'
           ? 0.01
@@ -260,7 +258,18 @@
       if (!placed.some(other => overlaps(entry, other))) placed.push(entry);
     });
 
-    Globe.labelsData(placed.map(entry => entry.item));
+    Globe.labelsData(
+      placed
+        .filter(entry => entry.item.type === 'region')
+        .map(entry => entry.item)
+    );
+    setSiteLabelVisibility(
+      new Set(
+        placed
+          .filter(entry => entry.item.type === 'site')
+          .map(entry => entry.item.id)
+      )
+    );
   }
 
   function scheduleLabelDeclutter(delay = 140) {
@@ -271,15 +280,15 @@
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
     .globeImageUrl(
-      // three-globe's bundled texture is already 4096x2048 — it wasn't the
-      // resolution that was blurry, see onGlobeReady below.
-      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+      // NASA's 5400 × 2700 Blue Marble base map gives the texture more room
+      // before it softens, while the vector country layer handles the detail.
+      'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/january/world.200401.3x5400x2700.jpg'
     )
     .bumpImageUrl(
       'https://unpkg.com/three-globe/example/img/earth-topology.png'
     )
     .showAtmosphere(true)
-    .showGraticules(true)
+    .showGraticules(false)
     .atmosphereColor('#5a8cff')
     .atmosphereAltitude(0.11)
     .onGlobeReady(() => {
@@ -300,10 +309,13 @@
     })
 
     .polygonsData([])
-    .polygonCapColor(() => 'rgba(0,0,0,0)')
-    .polygonSideColor(() => 'rgba(0,0,0,0)')
-    .polygonStrokeColor(() => 'rgba(255,255,255,.12)')
-    .polygonAltitude(0.001)
+    // Opaque vector land masks the softest part of the bitmap and keeps
+    // borders/coastlines sharp at every zoom level.
+    .polygonCapColor(() => 'rgba(24,41,42,.96)')
+    .polygonSideColor(() => 'rgba(8,16,21,.98)')
+    .polygonStrokeColor(() => 'rgba(221,198,139,.42)')
+    .polygonAltitude(0.006)
+    .polygonsTransitionDuration(0)
 
     .htmlElementsData([])
     .htmlLat('lat')
@@ -322,7 +334,12 @@
         `${site.name}, ${site.region}`
       );
       marker.title = `${site.name}, ${site.region}`;
-      marker.innerHTML = `<span class="city-pin__shape"></span>`;
+       marker.dataset.siteId = site.id;
+       marker.innerHTML = `
+         <span class="city-pin__shape" aria-hidden="true"></span>
+         <span class="city-pin__label"></span>
+       `;
+       marker.querySelector('.city-pin__label').textContent = site.name;
 
       marker.addEventListener('click', event => {
         event.stopPropagation();
@@ -368,12 +385,12 @@
     )
     .labelColor(item =>
       item.type === 'region'
-        ? 'rgba(255,255,255,.5)'
+        ? 'rgba(232,213,158,.78)'
         : item.id === selectedSiteId
           ? '#ffe39a'
           : 'rgba(255,255,255,.88)'
     )
-    .labelResolution(2)
+    .labelResolution(4)
     .labelDotRadius(item =>
       item.type === 'region'
         ? 0
@@ -381,9 +398,8 @@
           ? 0.22
           : 0.14
     )
-    // Site locations already have the custom tessera pin (htmlElement layer)
-    // marking them — the built-in label dot was drawing a second circle
-    // underneath it. Never show it.
+    // Site locations use the sharper HTML nameplates above; keep the canvas
+    // text layer for region labels only.
     .labelIncludeDot(() => false);
 
   Globe.controls().autoRotate = false;
@@ -393,7 +409,7 @@
   // zoom in past what any static image texture can resolve.
   Globe.controls().minDistance = 118;
   Globe.controls().maxDistance = 330;
-  Globe.controls().rotateSpeed = computeRotateSpeed();
+  Globe.controls().rotateSpeed = rotateSpeedForViewport();
   Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
   // globe.gl resets maxDistance asynchronously on init, and recalculates
@@ -404,7 +420,7 @@
   }, 0);
 
   Globe.controls().addEventListener('change', () => {
-    Globe.controls().rotateSpeed = computeRotateSpeed();
+    Globe.controls().rotateSpeed = rotateSpeedForViewport();
     Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
     currentAltitude = Globe.pointOfView().altitude;
@@ -561,7 +577,7 @@
   function resize() {
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
-    Globe.controls().rotateSpeed = computeRotateSpeed();
+    Globe.controls().rotateSpeed = rotateSpeedForViewport();
     const renderer = Globe.renderer();
     if (renderer) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));

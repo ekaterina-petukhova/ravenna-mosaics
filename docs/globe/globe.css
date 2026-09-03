@@ -322,13 +322,13 @@ a { color: inherit; }
 }
 
 /* =========================================================
-   CITY MAP PINS
+   CITY MAP PINS + HTML NAMEPLATES
    ========================================================= */
 
 .city-pin {
   position: relative;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -340,62 +340,88 @@ a { color: inherit; }
 
 .city-pin__shape {
   position: absolute;
-  inset: 0;
+  inset: 1px;
   display: block;
-  border-radius: 3px;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, #f4d488 0%, #d9a93e 45%, #b9832a 100%);
+  border-radius: 50%;
+  background: #efc96e;
+  border: 2px solid rgba(255,247,208,.95);
   box-shadow:
-    0 0 0 1px rgba(255,235,180,.35) inset,
-    0 2px 6px rgba(0,0,0,.55),
-    0 0 10px rgba(216,168,68,.45);
-}
-
-.city-pin__shape::before {
-  /* grout line splitting the tile into four tesserae */
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(rgba(6,7,10,.55) 0 0) center / 100% 1px no-repeat,
-    linear-gradient(90deg, rgba(6,7,10,.55) 0 0) center / 1px 100% no-repeat;
+    0 0 0 1px rgba(105,66,24,.72),
+    0 2px 8px rgba(0,0,0,.62),
+    0 0 14px rgba(239,201,110,.52);
 }
 
 .city-pin__shape::after {
   content: "";
   position: absolute;
-  width: 4px;
-  height: 4px;
-  left: 50%;
-  top: 50%;
-  margin: -2px 0 0 -2px;
+  inset: 3px;
   border-radius: 50%;
-  background: rgba(255,255,255,.92);
-  transform: rotate(-45deg);
+  background: #fff6d6;
 }
 
-.city-pin:hover {
-  transform: translate(-50%, -50%) scale(calc(var(--pin-scale, 1) * 1.25));
+.city-pin__label {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  display: block;
+  padding: 4px 8px 5px;
+  border: 1px solid rgba(239,216,141,.26);
+  border-radius: 6px;
+  background: rgba(7,10,13,.82);
+  box-shadow: 0 5px 16px rgba(0,0,0,.26);
+  color: #f7f0dc;
+  font: 600 12px/1 Nunito, system-ui, sans-serif;
+  letter-spacing: .025em;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(0,0,0,.8);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-4px);
+  transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+}
+
+.city-pin.has-label .city-pin__label,
+.city-pin:hover .city-pin__label,
+.city-pin:focus-visible .city-pin__label {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
+.city-pin:hover,
+.city-pin:focus-visible {
+  transform: translate(-50%, -50%) scale(calc(var(--pin-scale, 1) * 1.16));
   z-index: 20;
 }
 
+.city-pin:focus-visible {
+  outline: 2px solid #fff0b4;
+  outline-offset: 5px;
+}
+
 .city-pin.is-active {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   z-index: 30;
 }
 
 .city-pin.is-active .city-pin__shape {
-  background: linear-gradient(135deg, #ffe9ad 0%, #efc14e 45%, #c9922f 100%);
+  inset: 0;
+  background: #f6d981;
+  border-width: 2px;
   box-shadow:
-    0 0 0 1px rgba(255,235,180,.5) inset,
-    0 0 0 4px rgba(239,193,78,.14),
-    0 0 20px rgba(255,205,90,.55),
+    0 0 0 3px rgba(239,193,78,.2),
+    0 0 20px rgba(255,205,90,.72),
     0 4px 10px rgba(0,0,0,.6);
 }
 
 .city-pin.is-active .city-pin__shape::after {
-  width: 6px;
-  height: 6px;
-  margin: -3px 0 0 -3px;
+  inset: 4px;
+}
+
+.city-pin.is-active .city-pin__label {
+  border-color: rgba(239,216,141,.6);
+  color: #fff4bd;
+  font-weight: 700;
 }
