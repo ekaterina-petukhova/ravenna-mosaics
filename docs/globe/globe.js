@@ -249,7 +249,26 @@
   Globe.controls().maxDistance = 330;
   Globe.controls().rotateSpeed = 0.85;
   Globe.controls().zoomSpeed = 1.15;
+  
 
+  Globe.controls().autoRotate = false;
+  Globe.controls().enablePan = false;
+  Globe.controls().minDistance = 100;
+  Globe.controls().maxDistance = 330;
+  Globe.controls().rotateSpeed = 0.85;
+  Globe.controls().zoomSpeed = 1.15;
+
+// globe.gl resets maxDistance asynchronously on init, and recalculates
+// zoomSpeed/rotateSpeed on every camera "change" event. Re-assert our
+// values so they actually stick.
+  setTimeout(() => {
+    Globe.controls().maxDistance = 330;
+  }, 0);
+
+  Globe.controls().addEventListener('change', () => {
+    Globe.controls().rotateSpeed = 0.85;
+    Globe.controls().zoomSpeed = 1.15;
+  });
   Globe.pointOfView(
     { lat: 36, lng: 18, altitude: 1.78 },
     0
