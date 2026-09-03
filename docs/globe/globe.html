@@ -11,6 +11,7 @@
   <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
+  <div id="itineraryExperience" class="itinerary-experience">
   <main class="atlas-shell">
     <aside class="atlas-sidebar">
       <div class="sidebar-top">
@@ -19,9 +20,9 @@
       </div>
 
       <header class="atlas-title">
-        <span>Interactive atlas</span>
+        <span>Interactive Mosaic Itinerary</span>
         <h1>5,000 years of mosaic</h1>
-        <p>Follow how mosaic techniques moved across regions, cities and empires through time.</p>
+        <p>Scroll through the journey. Each new centre appears in sequence as the camera travels with the history of mosaic.</p>
       </header>
 
       <section id="infoCard" class="info-card" aria-live="polite">
@@ -71,7 +72,7 @@
           <span><i class="legend-line"></i> Historical connection</span>
           <span><i class="legend-label"></i> Region / country label</span>
         </div>
-        <p class="legend-note">Drag to rotate, scroll to zoom, or start Story mode for a guided journey.</p>
+        <p class="legend-note">Scroll to travel through time, drag to rotate, or start Story mode for an automatic journey.</p>
       </section>
     </aside>
 
@@ -82,8 +83,11 @@
       <div class="globe-vignette"></div>
     </section>
   </main>
+  </div>
 
   <script src="./mosaic-sites.js?v=2"></script>
-  <script src="./globe.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="./globe.js?v=4"></script>
 </body>
 </html>

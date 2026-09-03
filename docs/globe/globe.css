@@ -425,3 +425,87 @@ a { color: inherit; }
   color: #fff4bd;
   font-weight: 700;
 }
+
+/* =========================================================
+   GSAP SCROLL-DRIVEN ITINERARY
+   ========================================================= */
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.itinerary-experience {
+  position: relative;
+  height: 1450vh;
+  background: var(--bg);
+}
+
+.itinerary-experience .atlas-shell {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.atlas-title,
+.info-card,
+.timeline-panel,
+.legend-panel {
+  will-change: transform, opacity;
+}
+
+.atlas-sidebar::after {
+  content: "SCROLL TO TRAVEL";
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  color: rgba(239, 216, 141, .42);
+  font-size: 9px;
+  letter-spacing: .22em;
+  writing-mode: vertical-rl;
+  pointer-events: none;
+}
+
+.city-pin {
+  will-change: transform, opacity;
+}
+
+.city-pin.is-new {
+  animation: itineraryPinArrival .72s cubic-bezier(.2,.85,.25,1) both;
+}
+
+@keyframes itineraryPinArrival {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.15);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(calc(var(--pin-scale, 1) * 1.28));
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(var(--pin-scale, 1));
+  }
+}
+
+@media (max-width: 860px) {
+  .itinerary-experience {
+    height: 1250vh;
+  }
+
+  .itinerary-experience .atlas-shell {
+    position: sticky;
+    grid-template-rows: 46svh 54svh;
+  }
+
+  .atlas-sidebar::after {
+    display: none;
+  }
+}

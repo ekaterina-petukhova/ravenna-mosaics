@@ -33,6 +33,25 @@
     return countryPalette[Math.abs(hash) % countryPalette.length];
   };
 
+  const countryName = feature =>
+    feature?.properties?.NAME_LONG ||
+    feature?.properties?.ADMIN ||
+    feature?.properties?.NAME ||
+    '';
+
+  const countryDisplayColor = feature => {
+    const names = slugCountryNames[activeCountrySlug] || [];
+    const name = countryName(feature);
+    const isActive = names.some(candidate =>
+      name.toLowerCase().includes(candidate.toLowerCase())
+    );
+    return isActive ? '#d9a24a' : countryColor(feature);
+  };
+
+  const refreshCountryHighlight = () => {
+    Globe.polygonCapColor(feature => countryDisplayColor(feature));
+  };
+
   // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
   // by finger/mouse travel distance. On a short mobile viewport the same
   // physical swipe covers a much bigger fraction of the screen, so the same
@@ -76,6 +95,31 @@
   let storyPlaying = false;
   let storyRun = 0;
   let selectedSiteId = null;
+  let revealedSiteIds = new Set();
+  let routeStepIndex = -1;
+  let scrollSyncEnabled = true;
+  let activeCountrySlug = 'iraq';
+
+  const itineraryRoute = [...sites]
+    .sort((a, b) => (a.start - b.start) || (b.importance - a.importance))
+    .map(site => ({
+      site: site.id,
+      year: site.start,
+      altitude: site.importance >= 5 ? 0.88 : 0.96
+    }));
+
+  const slugCountryNames = {
+    iraq: ['Iraq'],
+    turkey: ['Turkey'],
+    greece: ['Greece'],
+    egypt: ['Egypt'],
+    italy: ['Italy'],
+    tunisia: ['Tunisia'],
+    cyprus: ['Cyprus'],
+    jordan: ['Jordan'],
+    palestine: ['Palestine', 'Israel'],
+    syria: ['Syria']
+  };
 
   const formatYear = year =>
     year < 0 ? `${Math.abs(year)} BCE` : `${year} CE`;
@@ -117,8 +161,15 @@
     ];
   };
 
-  const visibleSites = () =>
-    sites.filter(site => site.start <= selectedYear);
+  const visibleSites = () => {
+    const eligible = sites.filter(site => site.start <= selectedYear);
+
+    if (scrollSyncEnabled) {
+      return eligible.filter(site => revealedSiteIds.has(site.id));
+    }
+
+    return eligible;
+  };
 
   const linksForYear = () =>
     connections
@@ -126,7 +177,8 @@
         link =>
           link.start <= selectedYear &&
           byId[link.from] &&
-          byId[link.to]
+          byId[link.to] &&
+          (!scrollSyncEnabled || (revealedSiteIds.has(link.from) && revealedSiteIds.has(link.to)))
       )
       .map(link => ({
         ...link,
@@ -322,7 +374,7 @@
 
     .polygonsData([])
     // A vector-only globe stays sharp at every zoom and remains lightweight.
-    .polygonCapColor(countryColor)
+    .polygonCapColor(feature => countryDisplayColor(feature))
     .polygonSideColor(() => 'rgba(26,35,35,.98)')
     .polygonStrokeColor(() => 'rgba(244,226,178,.55)')
     .polygonAltitude(0.004)
@@ -338,7 +390,7 @@
       const marker = document.createElement('button');
       marker.type = 'button';
       marker.className = `city-pin${
-        site.id === selectedSiteId ? ' is-active' : ''
+        site.id === selectedSiteId ? ' is-active is-new' : ''
       }`;
       marker.setAttribute(
         'aria-label',
@@ -355,6 +407,7 @@
       marker.addEventListener('click', event => {
         event.stopPropagation();
         stopStory();
+        scrollSyncEnabled = false;
         selectSite(site, true);
       });
 
@@ -415,6 +468,8 @@
 
   Globe.controls().autoRotate = false;
   Globe.controls().enablePan = false;
+  // Wheel/trackpad scroll drives the historical itinerary; camera distance is directed by each stop.
+  Globe.controls().enableZoom = false;
   // 118 instead of 100 (the bare surface): stops zoom right around where
   // even the 4K texture starts turning to mush, instead of letting people
   // zoom in past what any static image texture can resolve.
@@ -444,7 +499,7 @@
   updatePinScale(currentAltitude);
 
   Globe.pointOfView(
-    { lat: 36, lng: 18, altitude: BASE_ALTITUDE },
+    { lat: 31.324, lng: 45.636, altitude: 0.92 },
     0
   );
 
@@ -534,11 +589,21 @@
     regionLink.href =
       `./region.html?region=${encodeURIComponent(site.regionSlug)}&from=${encodeURIComponent(site.id)}`;
 
+    if (window.gsap) {
+      gsap.fromTo(
+        [cardEra, cardTitle, cardText, cardMeta, regionLink],
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.48, stagger: 0.045, ease: 'power2.out', overwrite: true }
+      );
+    }
+
     refresh();
   }
 
   slider.addEventListener('input', () => {
     stopStory();
+    scrollSyncEnabled = false;
+    revealedSiteIds = new Set(sites.filter(site => site.start <= Number(slider.value)).map(site => site.id));
     refresh();
   });
 
@@ -547,7 +612,9 @@
   document.querySelectorAll('[data-year]').forEach(button => {
     button.addEventListener('click', () => {
       stopStory();
+      scrollSyncEnabled = false;
       slider.value = button.dataset.year;
+      revealedSiteIds = new Set(sites.filter(site => site.start <= Number(slider.value)).map(site => site.id));
       refresh();
     });
   });
@@ -561,8 +628,101 @@
   const wait = ms =>
     new Promise(resolve => setTimeout(resolve, ms));
 
+  function activateRouteStep(index, fly = true) {
+    const boundedIndex = Math.max(0, Math.min(itineraryRoute.length - 1, index));
+    if (boundedIndex === routeStepIndex && scrollSyncEnabled) return;
+
+    routeStepIndex = boundedIndex;
+    scrollSyncEnabled = true;
+
+    const step = itineraryRoute[boundedIndex];
+    const site = byId[step.site];
+    if (!site) return;
+
+    revealedSiteIds = new Set(
+      itineraryRoute
+        .slice(0, boundedIndex + 1)
+        .map(item => item.site)
+    );
+
+    selectedYear = step.year;
+    slider.value = step.year;
+    selectedSiteId = site.id;
+    activeCountrySlug = site.regionSlug || activeCountrySlug;
+
+    refreshCountryHighlight();
+    refresh();
+
+    if (fly) {
+      Globe.controls().autoRotate = false;
+      currentAltitude = step.altitude;
+      updatePinScale(currentAltitude);
+      Globe.pointOfView(
+        { lat: site.lat, lng: site.lng, altitude: step.altitude },
+        1150
+      );
+    }
+
+    selectSite(site, false);
+
+    if (window.gsap) {
+      gsap.fromTo(
+        yearLabel,
+        { opacity: 0.25, y: 8 },
+        { opacity: 1, y: 0, duration: 0.42, ease: 'power2.out', overwrite: true }
+      );
+      gsap.fromTo(
+        periodTitle,
+        { opacity: 0.3, y: 7 },
+        { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out', overwrite: true }
+      );
+    }
+  }
+
+  function setupScrollItinerary() {
+    const experience = document.getElementById('itineraryExperience');
+    if (!experience || !window.gsap || !window.ScrollTrigger) {
+      activateRouteStep(0, false);
+      return;
+    }
+
+    gsap.registerPlugin(ScrollTrigger);
+
+    activateRouteStep(0, false);
+
+    ScrollTrigger.create({
+      trigger: experience,
+      start: 'top top',
+      end: 'bottom bottom',
+      scrub: 0.7,
+      invalidateOnRefresh: true,
+      onUpdate(self) {
+        const lastIndex = itineraryRoute.length - 1;
+        const index = Math.min(
+          lastIndex,
+          Math.floor(self.progress * itineraryRoute.length)
+        );
+        activateRouteStep(index, true);
+      }
+    });
+
+    gsap.fromTo(
+      '.atlas-title',
+      { opacity: 0, x: -24 },
+      { opacity: 1, x: 0, duration: 1.05, ease: 'power3.out' }
+    );
+
+    gsap.fromTo(
+      '.globe-wrap',
+      { opacity: 0, scale: 0.96 },
+      { opacity: 1, scale: 1, duration: 1.2, ease: 'power2.out' }
+    );
+  }
+
   async function playStory() {
     stopStory(false);
+    scrollSyncEnabled = false;
+    revealedSiteIds = new Set(sites.map(site => site.id));
     storyPlaying = true;
     const run = ++storyRun;
 
@@ -612,5 +772,5 @@
 
   loadCountries();
   resize();
-  refresh();
+  setupScrollItinerary();
 })();
