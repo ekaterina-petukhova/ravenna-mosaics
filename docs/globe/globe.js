@@ -267,9 +267,9 @@
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
     .globeImageUrl(
-      // 4096px source instead of three-globe's bundled ~2K example texture —
-      // the old one is what was going soft/blurry on zoom-in.
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/planets/earth_atmos_4096.jpg'
+      // three-globe's bundled texture is already 4096x2048 — it wasn't the
+      // resolution that was blurry, see onGlobeReady below.
+      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
     )
     .bumpImageUrl(
       'https://unpkg.com/three-globe/example/img/earth-topology.png'
@@ -279,13 +279,18 @@
     .atmosphereColor('#5a8cff')
     .atmosphereAltitude(0.11)
     .onGlobeReady(() => {
-      // Sharpen the texture at grazing/close viewing angles instead of
-      // leaving it on default (blurrier) filtering.
-      const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
       const renderer = Globe.renderer();
+      if (renderer) {
+        // The real cause of the blur: without this, the canvas can render
+        // at a lower resolution than the screen's actual pixel density,
+        // softening everything — text, pins, and the globe texture alike.
+        // Capped at 2 so it doesn't tank performance on very high-DPI screens.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      }
+
+      const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
       if (material && material.map && renderer) {
-        const maxAniso = renderer.capabilities.getMaxAnisotropy();
-        material.map.anisotropy = maxAniso;
+        material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
         material.map.needsUpdate = true;
       }
     })
@@ -553,6 +558,10 @@
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
     Globe.controls().rotateSpeed = rotateSpeedForViewport();
+    const renderer = Globe.renderer();
+    if (renderer) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    }
     applyLabelDeclutter();
   }
 
