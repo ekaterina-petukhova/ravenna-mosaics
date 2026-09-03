@@ -12,25 +12,27 @@
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
   const GLOBE_RADIUS = 100; // matches three-globe's default globe radius
-  const BASE_ALTITUDE = 1.55; // matches the initial pointOfView below
+  const BASE_ALTITUDE = 0.48; // matches the initial pointOfView below
   const BASE_ROTATE_SPEED = 0.85;
   const BASE_ZOOM_SPEED = 1.15;
   const REFERENCE_HEIGHT = 700; // desktop-ish canvas height rotateSpeed was tuned against
   let currentAltitude = BASE_ALTITUDE;
   let labelDeclutterTimer = null;
 
-  const countryPalette = ['#6f8274', '#7f8d76', '#8e9071', '#748b83', '#9a8968'];
-  const countryColor = feature => {
-    const name =
-      feature?.properties?.NAME_LONG ||
-      feature?.properties?.ADMIN ||
-      feature?.properties?.NAME ||
-      '';
-    const hash = [...name].reduce(
-      (value, character) => (value * 31 + character.charCodeAt(0)) | 0,
-      0
-    );
-    return countryPalette[Math.abs(hash) % countryPalette.length];
+  const NEUTRAL_COUNTRY = '#b8b3aa';
+  const NEUTRAL_COUNTRY_ACTIVE_EDGE = 'rgba(55,45,38,.42)';
+
+  const countryRouteColors = {
+    iraq: '#c9894a',
+    turkey: '#d6a85f',
+    greece: '#b96b52',
+    egypt: '#d8b86c',
+    italy: '#a95d48',
+    tunisia: '#cb8e61',
+    cyprus: '#d9a66e',
+    jordan: '#be7758',
+    palestine: '#d2a05f',
+    syria: '#a96a50'
   };
 
   const countryName = feature =>
@@ -39,18 +41,49 @@
     feature?.properties?.NAME ||
     '';
 
+  const slugCountryNames = {
+    iraq: ['Iraq'],
+    turkey: ['Turkey'],
+    greece: ['Greece'],
+    egypt: ['Egypt'],
+    italy: ['Italy'],
+    tunisia: ['Tunisia'],
+    cyprus: ['Cyprus'],
+    jordan: ['Jordan'],
+    palestine: ['Palestine', 'Israel'],
+    syria: ['Syria']
+  };
+
+  const featureCountrySlug = feature => {
+    const name = countryName(feature).toLowerCase();
+    return Object.entries(slugCountryNames).find(([, names]) =>
+      names.some(candidate => name.includes(candidate.toLowerCase()))
+    )?.[0] || null;
+  };
+
+  let visitedCountrySlugs = new Set();
+
   const countryDisplayColor = feature => {
-    const names = slugCountryNames[activeCountrySlug] || [];
-    const name = countryName(feature);
-    const isActive = names.some(candidate =>
-      name.toLowerCase().includes(candidate.toLowerCase())
-    );
-    return isActive ? '#d9a24a' : countryColor(feature);
+    const slug = featureCountrySlug(feature);
+    if (!slug || !visitedCountrySlugs.has(slug)) return NEUTRAL_COUNTRY;
+
+    const base = countryRouteColors[slug] || '#c8955a';
+    if (slug === activeCountrySlug) return base;
+    return base;
+  };
+
+  const countryStrokeColor = feature => {
+    const slug = featureCountrySlug(feature);
+    if (slug && slug === activeCountrySlug) return 'rgba(255,242,204,.95)';
+    return NEUTRAL_COUNTRY_ACTIVE_EDGE;
   };
 
   const refreshCountryHighlight = () => {
-    Globe.polygonCapColor(feature => countryDisplayColor(feature));
+    Globe
+      .polygonCapColor(feature => countryDisplayColor(feature))
+      .polygonStrokeColor(feature => countryStrokeColor(feature));
   };
+
 
   // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
   // by finger/mouse travel distance. On a short mobile viewport the same
@@ -105,21 +138,8 @@
     .map(site => ({
       site: site.id,
       year: site.start,
-      altitude: site.importance >= 5 ? 0.88 : 0.96
+      altitude: site.importance >= 5 ? 0.42 : 0.48
     }));
-
-  const slugCountryNames = {
-    iraq: ['Iraq'],
-    turkey: ['Turkey'],
-    greece: ['Greece'],
-    egypt: ['Egypt'],
-    italy: ['Italy'],
-    tunisia: ['Tunisia'],
-    cyprus: ['Cyprus'],
-    jordan: ['Jordan'],
-    palestine: ['Palestine', 'Israel'],
-    syria: ['Syria']
-  };
 
   const formatYear = year =>
     year < 0 ? `${Math.abs(year)} BCE` : `${year} CE`;
@@ -376,9 +396,9 @@
     // A vector-only globe stays sharp at every zoom and remains lightweight.
     .polygonCapColor(feature => countryDisplayColor(feature))
     .polygonSideColor(() => 'rgba(26,35,35,.98)')
-    .polygonStrokeColor(() => 'rgba(244,226,178,.55)')
+    .polygonStrokeColor(() => NEUTRAL_COUNTRY_ACTIVE_EDGE)
     .polygonAltitude(0.004)
-    .polygonsTransitionDuration(0)
+    .polygonsTransitionDuration(650)
 
     .htmlElementsData([])
     .htmlLat('lat')
@@ -473,7 +493,7 @@
   // 118 instead of 100 (the bare surface): stops zoom right around where
   // even the 4K texture starts turning to mush, instead of letting people
   // zoom in past what any static image texture can resolve.
-  Globe.controls().minDistance = 118;
+  Globe.controls().minDistance = 112;
   Globe.controls().maxDistance = 330;
   Globe.controls().rotateSpeed = rotateSpeedForViewport();
   Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
@@ -499,7 +519,7 @@
   updatePinScale(currentAltitude);
 
   Globe.pointOfView(
-    { lat: 31.324, lng: 45.636, altitude: 0.92 },
+    { lat: 31.324, lng: 45.636, altitude: 0.42 },
     0
   );
 
@@ -557,16 +577,19 @@
     if (!site) return;
 
     selectedSiteId = site.id;
+    activeCountrySlug = site.regionSlug || activeCountrySlug;
+    visitedCountrySlugs.add(activeCountrySlug);
+    refreshCountryHighlight();
 
     if (fly) {
       Globe.controls().autoRotate = false;
-      currentAltitude = 0.9;
+      currentAltitude = 0.40;
       updatePinScale(currentAltitude);
       Globe.pointOfView(
         {
           lat: site.lat,
           lng: site.lng,
-          altitude: 0.9
+          altitude: 0.40
         },
         1200
       );
@@ -628,7 +651,34 @@
   const wait = ms =>
     new Promise(resolve => setTimeout(resolve, ms));
 
-  function activateRouteStep(index, fly = true) {
+  const clamp01 = value => Math.max(0, Math.min(1, value));
+  const smoothstep = value => {
+    const t = clamp01(value);
+    return t * t * (3 - 2 * t);
+  };
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  const lerpLongitude = (a, b, t) => {
+    let delta = b - a;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return a + delta * t;
+  };
+
+  const closeAltitudeFor = site => site?.importance >= 5 ? 0.38 : 0.44;
+  const transitionFarAltitude = 1.55;
+
+  function routeCountrySetThrough(index) {
+    return new Set(
+      itineraryRoute
+        .slice(0, Math.max(0, index) + 1)
+        .map(step => byId[step.site]?.regionSlug)
+        .filter(Boolean)
+    );
+  }
+
+  function setNarrativeState(index) {
     const boundedIndex = Math.max(0, Math.min(itineraryRoute.length - 1, index));
     if (boundedIndex === routeStepIndex && scrollSyncEnabled) return;
 
@@ -649,20 +699,10 @@
     slider.value = step.year;
     selectedSiteId = site.id;
     activeCountrySlug = site.regionSlug || activeCountrySlug;
+    visitedCountrySlugs = routeCountrySetThrough(boundedIndex);
 
     refreshCountryHighlight();
     refresh();
-
-    if (fly) {
-      Globe.controls().autoRotate = false;
-      currentAltitude = step.altitude;
-      updatePinScale(currentAltitude);
-      Globe.pointOfView(
-        { lat: site.lat, lng: site.lng, altitude: step.altitude },
-        1150
-      );
-    }
-
     selectSite(site, false);
 
     if (window.gsap) {
@@ -671,38 +711,94 @@
         { opacity: 0.25, y: 8 },
         { opacity: 1, y: 0, duration: 0.42, ease: 'power2.out', overwrite: true }
       );
-      gsap.fromTo(
-        periodTitle,
-        { opacity: 0.3, y: 7 },
-        { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out', overwrite: true }
-      );
     }
+  }
+
+  function setCameraFromScroll(progress) {
+    const lastIndex = itineraryRoute.length - 1;
+    if (lastIndex < 1) return;
+
+    const routePosition = clamp01(progress) * lastIndex;
+    const fromIndex = Math.min(lastIndex - 1, Math.floor(routePosition));
+    const local = routePosition - fromIndex;
+    const toIndex = Math.min(lastIndex, fromIndex + 1);
+
+    const fromSite = byId[itineraryRoute[fromIndex].site];
+    const toSite = byId[itineraryRoute[toIndex].site];
+    if (!fromSite || !toSite) return;
+
+    const countryChanges = fromSite.regionSlug !== toSite.regionSlug;
+
+    // Switch the narrative state after the camera has crossed most of the trip.
+    // This makes the new country fill with colour as we arrive there.
+    const activeIndex = local < 0.72 ? fromIndex : toIndex;
+    setNarrativeState(activeIndex);
+
+    let travelT;
+    let altitude;
+
+    if (countryChanges) {
+      // Big cinematic movement for every country change:
+      // CLOSE → ZOOM OUT → TRAVEL → ZOOM IN.
+      if (local < 0.28) {
+        const t = smoothstep(local / 0.28);
+        travelT = 0;
+        altitude = lerp(closeAltitudeFor(fromSite), transitionFarAltitude, t);
+      } else if (local < 0.68) {
+        const t = smoothstep((local - 0.28) / 0.40);
+        travelT = t;
+        altitude = transitionFarAltitude;
+      } else {
+        const t = smoothstep((local - 0.68) / 0.32);
+        travelT = 1;
+        altitude = lerp(transitionFarAltitude, closeAltitudeFor(toSite), t);
+      }
+    } else {
+      // Cities within the same country get a smaller local pan, without
+      // pretending that we have left the country and come back again.
+      travelT = smoothstep(local);
+      const midLift = Math.sin(Math.PI * local) * 0.18;
+      altitude = lerp(closeAltitudeFor(fromSite), closeAltitudeFor(toSite), travelT) + midLift;
+    }
+
+    const lat = lerp(fromSite.lat, toSite.lat, travelT);
+    const lng = lerpLongitude(fromSite.lng, toSite.lng, travelT);
+
+    currentAltitude = altitude;
+    updatePinScale(currentAltitude);
+    Globe.pointOfView({ lat, lng, altitude }, 0);
+    scheduleLabelDeclutter(20);
   }
 
   function setupScrollItinerary() {
     const experience = document.getElementById('itineraryExperience');
     if (!experience || !window.gsap || !window.ScrollTrigger) {
-      activateRouteStep(0, false);
+      setNarrativeState(0);
+      Globe.pointOfView(
+        { lat: byId.uruk?.lat || 31.324, lng: byId.uruk?.lng || 45.636, altitude: 0.38 },
+        0
+      );
       return;
     }
 
     gsap.registerPlugin(ScrollTrigger);
 
-    activateRouteStep(0, false);
+    visitedCountrySlugs = new Set(['iraq']);
+    activeCountrySlug = 'iraq';
+    setNarrativeState(0);
+    Globe.pointOfView(
+      { lat: byId.uruk?.lat || 31.324, lng: byId.uruk?.lng || 45.636, altitude: 0.38 },
+      0
+    );
 
     ScrollTrigger.create({
       trigger: experience,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.7,
+      scrub: true,
       invalidateOnRefresh: true,
       onUpdate(self) {
-        const lastIndex = itineraryRoute.length - 1;
-        const index = Math.min(
-          lastIndex,
-          Math.floor(self.progress * itineraryRoute.length)
-        );
-        activateRouteStep(index, true);
+        setCameraFromScroll(self.progress);
       }
     });
 
@@ -718,6 +814,7 @@
       { opacity: 1, scale: 1, duration: 1.2, ease: 'power2.out' }
     );
   }
+
 
   async function playStory() {
     stopStory(false);
