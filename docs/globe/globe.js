@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  // Natural Earth's 10m boundaries keep coastlines and borders crisp when
-  // the camera moves in. The old file was noticeably coarse at close range.
+  // The 50m Natural Earth boundaries are a good quality/performance balance
+  // for this Mediterranean atlas. The 10m file is too large for a first load.
   const COUNTRY_GEOJSON_URL =
-    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson';
+    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson';
 
   const sites = window.MOSAIC_SITES || [];
   const connections = window.MOSAIC_CONNECTIONS || [];
@@ -284,9 +284,6 @@
       // before it softens, while the vector country layer handles the detail.
       'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/january/world.200401.3x5400x2700.jpg'
     )
-    .bumpImageUrl(
-      'https://unpkg.com/three-globe/example/img/earth-topology.png'
-    )
     .showAtmosphere(true)
     .showGraticules(false)
     .atmosphereColor('#5a8cff')
@@ -297,8 +294,9 @@
         // The real cause of the blur: without this, the canvas can render
         // at a lower resolution than the screen's actual pixel density,
         // softening everything — text, pins, and the globe texture alike.
-        // Capped at 2 so it doesn't tank performance on very high-DPI screens.
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        // A 1.5x cap keeps text and pins crisp without creating a huge
+        // WebGL framebuffer on Retina/4K displays.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       }
 
       const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
@@ -390,7 +388,7 @@
           ? '#ffe39a'
           : 'rgba(255,255,255,.88)'
     )
-    .labelResolution(4)
+    .labelResolution(2)
     .labelDotRadius(item =>
       item.type === 'region'
         ? 0
@@ -580,7 +578,7 @@
     Globe.controls().rotateSpeed = rotateSpeedForViewport();
     const renderer = Globe.renderer();
     if (renderer) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     }
     applyLabelDeclutter();
   }
