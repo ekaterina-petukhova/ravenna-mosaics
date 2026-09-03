@@ -1,26 +1,33 @@
 (() => {
   'use strict';
 
-  // The 110m Natural Earth file keeps the first load small and reliable.
-  // The vector edges stay sharp when zoomed, unlike a larger bitmap.
   const COUNTRY_GEOJSON_URL =
     'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson';
 
   const sites = window.MOSAIC_SITES || [];
   const connections = window.MOSAIC_CONNECTIONS || [];
-  const story = window.MOSAIC_STORY || [];
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
-  const GLOBE_RADIUS = 100; // matches three-globe's default globe radius
-  const BASE_ALTITUDE = 0.48; // matches the initial pointOfView below
-  const BASE_ROTATE_SPEED = 0.85;
-  const BASE_ZOOM_SPEED = 1.15;
-  const REFERENCE_HEIGHT = 700; // desktop-ish canvas height rotateSpeed was tuned against
-  let currentAltitude = BASE_ALTITUDE;
-  let labelDeclutterTimer = null;
+  const el = id => document.getElementById(id);
+  const globeHost = el('globe');
+  const slider = el('yearSlider');
+  const yearLabel = el('yearLabel');
+  const periodTitle = el('periodTitle');
+  const periodDescription = el('periodDescription');
+  const toggle = el('connectionsToggle');
+  const infoCard = el('infoCard');
+  const cardEra = el('cardEra');
+  const cardTitle = el('cardTitle');
+  const cardText = el('cardText');
+  const cardMeta = el('cardMeta');
+  const regionLink = el('regionLink');
+  const closeCard = el('closeCard');
+  const holdHint = el('holdHint');
 
-  const NEUTRAL_COUNTRY = '#b8b3aa';
-  const NEUTRAL_COUNTRY_ACTIVE_EDGE = 'rgba(55,45,38,.42)';
+  const NEUTRAL_COUNTRY = '#9d9a92';
+  const NEUTRAL_STROKE = 'rgba(43,37,31,.32)';
+  const ACTIVE_STROKE = 'rgba(255,243,207,.96)';
+  const BASE_GLOBE = '#c8c4bb';
 
   const countryRouteColors = {
     iraq: '#c9894a',
@@ -35,12 +42,6 @@
     syria: '#a96a50'
   };
 
-  const countryName = feature =>
-    feature?.properties?.NAME_LONG ||
-    feature?.properties?.ADMIN ||
-    feature?.properties?.NAME ||
-    '';
-
   const slugCountryNames = {
     iraq: ['Iraq'],
     turkey: ['Turkey'],
@@ -54,6 +55,11 @@
     syria: ['Syria']
   };
 
+  const countryName = feature =>
+    feature?.properties?.NAME_LONG ||
+    feature?.properties?.ADMIN ||
+    feature?.properties?.NAME || '';
+
   const featureCountrySlug = feature => {
     const name = countryName(feature).toLowerCase();
     return Object.entries(slugCountryNames).find(([, names]) =>
@@ -61,376 +67,128 @@
     )?.[0] || null;
   };
 
-  let visitedCountrySlugs = new Set();
+  // Curated order: exactly one new centre is revealed at each narrative step.
+  const itineraryRoute = [
+    { site: 'uruk', year: -3500, country: 'iraq' },
+    { site: 'gordion', year: -800, country: 'turkey' },
+    { site: 'olynthus', year: -430, country: 'greece' },
+    { site: 'pella', year: -400, country: 'greece' },
+    { site: 'alexandria', year: -250, country: 'egypt' },
+    { site: 'delos', year: -200, country: 'greece' },
+    { site: 'pompeii', year: -150, country: 'italy' },
+    { site: 'rome', year: -100, country: 'italy' },
+    { site: 'carthage', year: 50, country: 'tunisia' },
+    { site: 'paphos', year: 150, country: 'cyprus' },
+    { site: 'antioch', year: 150, country: 'turkey' },
+    { site: 'ravenna', year: 400, country: 'italy' },
+    { site: 'thessaloniki', year: 400, country: 'greece' },
+    { site: 'constantinople', year: 400, country: 'turkey' },
+    { site: 'madaba', year: 500, country: 'jordan' },
+    { site: 'damascus', year: 705, country: 'syria' },
+    { site: 'jericho', year: 720, country: 'palestine' },
+    { site: 'venice', year: 1060, country: 'italy' },
+    { site: 'palermo', year: 1130, country: 'italy' },
+    { site: 'monreale', year: 1170, country: 'italy' }
+  ].filter(step => byId[step.site]);
+
+  let selectedYear = -3500;
+  let selectedSiteId = itineraryRoute[0]?.site || null;
+  let routeStepIndex = 0;
+  let revealedSiteIds = new Set(selectedSiteId ? [selectedSiteId] : []);
+  let visitedCountrySlugs = new Set(['iraq']);
+  let activeCountrySlug = 'iraq';
+  let storyPlaying = false;
+  let storyToken = 0;
+  let holdTimer = null;
+  let holdStartedAt = 0;
+  let longPressTriggered = false;
+  let currentAltitude = 0.26;
+
+  const formatYear = year => year < 0 ? `${Math.abs(year)} BCE` : `${year} CE`;
+
+  const periodFor = year => {
+    if (year < -1000) return ['The first experiments', 'Patterned architectural surfaces emerge in Mesopotamia.'];
+    if (year < -500) return ['From cones to pebbles', 'Pebble pavements become an important new mosaic language.'];
+    if (year < -50) return ['Greek and Hellenistic worlds', 'Mosaic becomes increasingly pictorial across Mediterranean centres.'];
+    if (year < 350) return ['The Roman mosaic world', 'Mosaic spreads through villas, baths and public architecture across the empire.'];
+    if (year < 750) return ['Late Antiquity and Byzantium', 'Glass and gold transform sacred and imperial interiors.'];
+    return ['Medieval transformations', 'Byzantine traditions interact with Islamic, Venetian and Norman cultures.'];
+  };
 
   const countryDisplayColor = feature => {
     const slug = featureCountrySlug(feature);
     if (!slug || !visitedCountrySlugs.has(slug)) return NEUTRAL_COUNTRY;
-
-    const base = countryRouteColors[slug] || '#c8955a';
-    if (slug === activeCountrySlug) return base;
-    return base;
+    return countryRouteColors[slug] || '#c8955a';
   };
 
   const countryStrokeColor = feature => {
     const slug = featureCountrySlug(feature);
-    if (slug && slug === activeCountrySlug) return 'rgba(255,242,204,.95)';
-    return NEUTRAL_COUNTRY_ACTIVE_EDGE;
+    return slug && slug === activeCountrySlug ? ACTIVE_STROKE : NEUTRAL_STROKE;
   };
 
-  const refreshCountryHighlight = () => {
-    Globe
-      .polygonCapColor(feature => countryDisplayColor(feature))
-      .polygonStrokeColor(feature => countryStrokeColor(feature));
-  };
-
-
-  // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
-  // by finger/mouse travel distance. On a short mobile viewport the same
-  // physical swipe covers a much bigger fraction of the screen, so the same
-  // rotateSpeed value spins the globe far faster. Scale it down accordingly.
-  const rotateSpeedForViewport = () => {
-    const height = globeHost.clientHeight || REFERENCE_HEIGHT;
-    const factor = Math.min(1, height / REFERENCE_HEIGHT);
-    return BASE_ROTATE_SPEED * Math.max(0.35, factor);
-  };
-
-  const regionAnchors = [
-    { id: 'label-iraq', name: 'Iraq', lat: 33.2, lng: 43.8, type: 'region', start: -3500 },
-    { id: 'label-anatolia', name: 'Anatolia', lat: 39.0, lng: 35.0, type: 'region', start: -900 },
-    { id: 'label-greece', name: 'Greece', lat: 39.2, lng: 22.6, type: 'region', start: -450 },
-    { id: 'label-egypt', name: 'Egypt', lat: 27.2, lng: 30.2, type: 'region', start: -250 },
-    { id: 'label-italy', name: 'Italy', lat: 42.5, lng: 12.6, type: 'region', start: -150 },
-    { id: 'label-nafrica', name: 'North Africa', lat: 33.0, lng: 12.0, type: 'region', start: 50 },
-    { id: 'label-cyprus', name: 'Cyprus', lat: 35.0, lng: 33.0, type: 'region', start: 150 },
-    { id: 'label-levant', name: 'Levant', lat: 32.2, lng: 35.6, type: 'region', start: 500 },
-    { id: 'label-syria', name: 'Syria', lat: 35.0, lng: 38.2, type: 'region', start: 700 },
-    { id: 'label-byzantine', name: 'Byzantine world', lat: 41.2, lng: 27.5, type: 'region', start: 400 }
-  ];
-
-  const el = id => document.getElementById(id);
-  const globeHost = el('globe');
-  const slider = el('yearSlider');
-  const yearLabel = el('yearLabel');
-  const periodTitle = el('periodTitle');
-  const periodDescription = el('periodDescription');
-  const toggle = el('connectionsToggle');
-  const storyButton = el('storyButton');
-  const infoCard = el('infoCard');
-  const cardEra = el('cardEra');
-  const cardTitle = el('cardTitle');
-  const cardText = el('cardText');
-  const cardMeta = el('cardMeta');
-  const regionLink = el('regionLink');
-  const closeCard = el('closeCard');
-
-  let selectedYear = Number(slider.value);
-  let storyPlaying = false;
-  let storyRun = 0;
-  let selectedSiteId = null;
-  let revealedSiteIds = new Set();
-  let routeStepIndex = -1;
-  let scrollSyncEnabled = true;
-  let activeCountrySlug = 'iraq';
-
-  const itineraryRoute = [...sites]
-    .sort((a, b) => (a.start - b.start) || (b.importance - a.importance))
-    .map(site => ({
-      site: site.id,
-      year: site.start,
-      altitude: site.importance >= 5 ? 0.42 : 0.48
-    }));
-
-  const formatYear = year =>
-    year < 0 ? `${Math.abs(year)} BCE` : `${year} CE`;
-
-  const periodFor = year => {
-    if (year < -1000) {
-      return [
-        'The first experiments',
-        'In Mesopotamia, patterned architectural surfaces were assembled from repeated coloured elements.'
-      ];
-    }
-    if (year < -500) {
-      return [
-        'From cones to pebbles',
-        'Across Anatolia and the eastern Mediterranean, pebble pavements become an important new mosaic language.'
-      ];
-    }
-    if (year < -50) {
-      return [
-        'Greek and Hellenistic worlds',
-        'Pebble floors become pictorial and tessellated techniques spread through interconnected Mediterranean centres.'
-      ];
-    }
-    if (year < 350) {
-      return [
-        'The Roman mosaic world',
-        'Mosaic becomes a major art of villas, baths, houses and public architecture across the Roman Empire.'
-      ];
-    }
-    if (year < 750) {
-      return [
-        'Late Antiquity and Byzantium',
-        'Glass, gold and wall mosaic transform sacred and imperial interiors from Ravenna to the eastern Mediterranean.'
-      ];
-    }
-    return [
-      'Medieval transformations',
-      'Byzantine traditions interact with Islamic, Venetian and Norman Mediterranean cultures in new monumental programmes.'
-    ];
-  };
-
-  const visibleSites = () => {
-    const eligible = sites.filter(site => site.start <= selectedYear);
-
-    if (scrollSyncEnabled) {
-      return eligible.filter(site => revealedSiteIds.has(site.id));
-    }
-
-    return eligible;
-  };
-
-  const linksForYear = () =>
-    connections
-      .filter(
-        link =>
-          link.start <= selectedYear &&
-          byId[link.from] &&
-          byId[link.to] &&
-          (!scrollSyncEnabled || (revealedSiteIds.has(link.from) && revealedSiteIds.has(link.to)))
-      )
-      .map(link => ({
-        ...link,
-        source: byId[link.from],
-        target: byId[link.to]
-      }));
+  const visibleSites = () =>
+    itineraryRoute
+      .slice(0, routeStepIndex + 1)
+      .map(step => byId[step.site])
+      .filter(Boolean);
 
   const visibleConnections = () => {
     if (!toggle.checked) return [];
-
-    const base = linksForYear();
-    if (!selectedSiteId) return base;
-
-    const related = base.filter(
-      link =>
-        link.from === selectedSiteId ||
-        link.to === selectedSiteId
-    );
-
-    return related.length ? related : base;
-  };
-
-  const visibleLabels = () => {
-    const shownSites = visibleSites();
-    // Keep every candidate available to the declutter pass. The pass decides
-    // how many names can fit at this zoom rather than hiding useful labels
-    // just because the timeline currently contains many sites.
-    const labels = shownSites.filter(shouldShowSiteLabel);
-
-    const regions = regionAnchors.filter(
-      anchor => anchor.start <= selectedYear
-    );
-
-    return [
-      ...regions,
-      ...labels.map(site => ({ ...site, type: 'site' }))
-    ];
-  };
-
-  const shouldShowSiteLabel = site =>
-    site.id === selectedSiteId ||
-    site.importance >= (currentAltitude <= 1.18 ? 4 : 5);
-
-  const setSiteLabelVisibility = visibleIds => {
-    globeHost.querySelectorAll('[data-site-id]').forEach(marker => {
-      marker.classList.toggle(
-        'has-label',
-        visibleIds.has(marker.dataset.siteId)
-      );
-    });
-  };
-
-  const altitudeToLabelScale = altitude => {
-    // Keeps a label's on-screen size roughly constant as you zoom,
-    // instead of it ballooning the closer the camera gets.
-    const raw = (altitude + 1) / (BASE_ALTITUDE + 1);
-    return Math.min(1.35, Math.max(0.38, raw));
+    return connections
+      .filter(link => revealedSiteIds.has(link.from) && revealedSiteIds.has(link.to))
+      .map(link => ({ ...link, source: byId[link.from], target: byId[link.to] }))
+      .filter(link => link.source && link.target);
   };
 
   const updatePinScale = altitude => {
-    const scale = Math.min(1.1, Math.max(0.55, (altitude + 0.35) / (BASE_ALTITUDE + 0.35)));
+    const scale = Math.max(.58, Math.min(1.18, (altitude + .36) / .68));
     globeHost.style.setProperty('--pin-scale', scale.toFixed(3));
   };
-
-  // Is this geo point on the hemisphere currently facing the camera?
-  // (a screen projection alone doesn't know a point is hidden behind the globe)
-  const isFacingCamera = (lat, lng, altitude) => {
-    const camera = Globe.camera();
-    const p = Globe.getCoords(lat, lng, altitude);
-    const pLen = Math.hypot(p.x, p.y, p.z);
-    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
-    const cLen = Math.hypot(cx, cy, cz);
-    if (!pLen || !cLen) return true;
-    const dot = (p.x * cx + p.y * cy + p.z * cz) / (pLen * cLen);
-    const horizonCos = GLOBE_RADIUS / cLen - 0.03; // small buffer for near-limb labels
-    return dot > horizonCos;
-  };
-
-  // Screen-space label declutter: project every candidate label, then keep
-  // the highest-priority ones and drop any that would visually collide.
-  // Region labels matter most when zoomed out and give way to specific
-  // site names as you zoom in close.
-  function applyLabelDeclutter() {
-    const candidates = visibleLabels();
-    const width = globeHost.clientWidth;
-    const height = globeHost.clientHeight;
-
-    if (!candidates.length || !width || !height) {
-      Globe.labelsData(candidates.filter(item => item.type === 'region'));
-      setSiteLabelVisibility(new Set());
-      return;
-    }
-
-    const approxCharWidth = 7.4; // empirical, px/char at labelSize 1, labelResolution 2
-    const regionPriority = 260 + Math.max(0, currentAltitude - 0.5) * 500;
-
-    const scored = candidates
-      .filter(item => item.type === 'region' || shouldShowSiteLabel(item))
-      .map(item => {
-        const altitude = item.type === 'region'
-          ? 0.01
-          : item.id === selectedSiteId
-            ? 0.05
-            : 0.03;
-
-        if (!isFacingCamera(item.lat, item.lng, altitude)) return null;
-
-        const screen = Globe.getScreenCoords(item.lat, item.lng, altitude);
-        if (!screen) return null;
-
-        const priority = item.id === selectedSiteId
-          ? 1000
-          : item.type === 'region'
-            ? regionPriority
-            : (item.importance || 1) * 110;
-
-        const sizeMult = item.type === 'region'
-          ? 1.15
-          : item.id === selectedSiteId
-            ? 1.15
-            : 0.9;
-        const fontScale = altitudeToLabelScale(currentAltitude) * sizeMult;
-
-        const boxW = Math.max(26, (item.name || '').length * approxCharWidth * fontScale);
-        const boxH = 17 * fontScale;
-
-        return { item, screen, priority, boxW, boxH };
-      })
-      .filter(entry =>
-        entry &&
-        entry.screen.x > -entry.boxW && entry.screen.x < width + entry.boxW &&
-        entry.screen.y > -entry.boxH && entry.screen.y < height + entry.boxH
-      )
-      .sort((a, b) => b.priority - a.priority);
-
-    const margin = 4;
-    const overlaps = (a, b) =>
-      Math.abs(a.screen.x - b.screen.x) < (a.boxW + b.boxW) / 2 + margin &&
-      Math.abs(a.screen.y - b.screen.y) < (a.boxH + b.boxH) / 2 + margin;
-
-    const placed = [];
-    scored.forEach(entry => {
-      if (!placed.some(other => overlaps(entry, other))) placed.push(entry);
-    });
-
-    Globe.labelsData(
-      placed
-        .filter(entry => entry.item.type === 'region')
-        .map(entry => entry.item)
-    );
-    setSiteLabelVisibility(
-      new Set(
-        placed
-          .filter(entry => entry.item.type === 'site')
-          .map(entry => entry.item.id)
-      )
-    );
-  }
-
-  function scheduleLabelDeclutter(delay = 140) {
-    clearTimeout(labelDeclutterTimer);
-    labelDeclutterTimer = setTimeout(applyLabelDeclutter, delay);
-  }
 
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
     .showAtmosphere(true)
-    .showGraticules(false)
-    .atmosphereColor('#76aaa2')
-    .atmosphereAltitude(0.06)
+    .atmosphereColor('#d8c8aa')
+    .atmosphereAltitude(0.035)
+    .showGraticules(true)
     .onGlobeReady(() => {
       const renderer = Globe.renderer();
-      if (renderer) {
-        // The real cause of the blur: without this, the canvas can render
-        // at a lower resolution than the screen's actual pixel density,
-        // softening everything — text, pins, and the globe texture alike.
-        // A 1.25x cap avoids creating a huge WebGL framebuffer on
-        // Retina/4K displays while preserving good edge quality.
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-      }
-
-      const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
+      if (renderer) renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
+      const material = Globe.globeMaterial?.();
       if (material) {
-        // A solid vector globe stays crisp and avoids downloading a large
-        // raster Earth image just to enlarge it during zoom.
         material.map = null;
         material.bumpMap = null;
-        if (material.color) material.color.set('#0b1c25');
-        if (material.emissive) material.emissive.set('#061018');
+        if (material.color) material.color.set(BASE_GLOBE);
+        if (material.emissive) material.emissive.set('#181511');
         material.needsUpdate = true;
       }
     })
-
     .polygonsData([])
-    // A vector-only globe stays sharp at every zoom and remains lightweight.
-    .polygonCapColor(feature => countryDisplayColor(feature))
-    .polygonSideColor(() => 'rgba(26,35,35,.98)')
-    .polygonStrokeColor(() => NEUTRAL_COUNTRY_ACTIVE_EDGE)
-    .polygonAltitude(0.004)
-    .polygonsTransitionDuration(650)
+    .polygonCapColor(countryDisplayColor)
+    .polygonSideColor(() => 'rgba(83,72,61,.92)')
+    .polygonStrokeColor(countryStrokeColor)
+    .polygonAltitude(feature => featureCountrySlug(feature) === activeCountrySlug ? 0.008 : 0.004)
+    .polygonsTransitionDuration(700)
 
     .htmlElementsData([])
     .htmlLat('lat')
     .htmlLng('lng')
-    .htmlAltitude(site =>
-      site.id === selectedSiteId ? 0.035 : 0.02
-    )
+    .htmlAltitude(site => site.id === selectedSiteId ? 0.04 : 0.02)
     .htmlElement(site => {
       const marker = document.createElement('button');
       marker.type = 'button';
-      marker.className = `city-pin${
-        site.id === selectedSiteId ? ' is-active is-new' : ''
-      }`;
-      marker.setAttribute(
-        'aria-label',
-        `${site.name}, ${site.region}`
-      );
-      marker.title = `${site.name}, ${site.region}`;
-       marker.dataset.siteId = site.id;
-       marker.innerHTML = `
-         <span class="city-pin__shape" aria-hidden="true"></span>
-         <span class="city-pin__label"></span>
-       `;
-       marker.querySelector('.city-pin__label').textContent = site.name;
-
+      marker.dataset.siteId = site.id;
+      marker.className = `city-pin${site.id === selectedSiteId ? ' is-active' : ''}`;
+      marker.setAttribute('aria-label', `${site.name}, ${site.region}`);
+      marker.innerHTML = `
+        <span class="city-pin__shape" aria-hidden="true"></span>
+        <span class="city-pin__label">${site.name}</span>
+      `;
       marker.addEventListener('click', event => {
         event.stopPropagation();
         stopStory();
-        scrollSyncEnabled = false;
-        selectSite(site, true);
+        jumpToSite(site);
       });
-
       return marker;
     })
 
@@ -438,167 +196,63 @@
     .arcStartLng(link => link.source.lng)
     .arcEndLat(link => link.target.lat)
     .arcEndLng(link => link.target.lng)
-    .arcColor(() => [
-      'rgba(105,150,255,.03)',
-      'rgba(128,175,255,.46)'
-    ])
-    .arcAltitudeAutoScale(0.11)
-    .arcStroke(0.18)
-    .arcDashLength(0.22)
-    .arcDashGap(0.88)
-    .arcDashAnimateTime(3400)
-    .arcLabel(link => link.label)
+    .arcColor(() => ['rgba(221,180,98,.04)', 'rgba(240,199,109,.50)'])
+    .arcAltitudeAutoScale(0.10)
+    .arcStroke(0.13)
+    .arcDashLength(0.24)
+    .arcDashGap(0.82)
+    .arcDashAnimateTime(3600);
 
-    .labelLat('lat')
-    .labelLng('lng')
-    .labelText(item => item.name)
-    .labelSize(item => {
-      const base = item.type === 'region'
-        ? 1.15
-        : item.id === selectedSiteId
-          ? 1.15
-          : 0.9;
-      return base * altitudeToLabelScale(currentAltitude);
-    })
-    .labelAltitude(item =>
-      item.type === 'region'
-        ? 0.01
-        : item.id === selectedSiteId
-          ? 0.05
-          : 0.03
-    )
-    .labelColor(item =>
-      item.type === 'region'
-        ? 'rgba(232,213,158,.78)'
-        : item.id === selectedSiteId
-          ? '#ffe39a'
-          : 'rgba(255,255,255,.88)'
-    )
-    .labelResolution(2)
-    .labelDotRadius(item =>
-      item.type === 'region'
-        ? 0
-        : item.id === selectedSiteId
-          ? 0.22
-          : 0.14
-    )
-    // Site locations use the sharper HTML nameplates above; keep the canvas
-    // text layer for region labels only.
-    .labelIncludeDot(() => false);
+  const controls = Globe.controls();
+  controls.autoRotate = false;
+  controls.enablePan = false;
+  controls.enableZoom = true;
+  controls.minDistance = 106;
+  controls.maxDistance = 360;
+  controls.rotateSpeed = .78;
+  controls.zoomSpeed = 1.1;
 
-  Globe.controls().autoRotate = false;
-  Globe.controls().enablePan = false;
-  // Wheel/trackpad scroll drives the historical itinerary; camera distance is directed by each stop.
-  Globe.controls().enableZoom = false;
-  // 118 instead of 100 (the bare surface): stops zoom right around where
-  // even the 4K texture starts turning to mush, instead of letting people
-  // zoom in past what any static image texture can resolve.
-  Globe.controls().minDistance = 112;
-  Globe.controls().maxDistance = 330;
-  Globe.controls().rotateSpeed = rotateSpeedForViewport();
-  Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
-
-  // globe.gl resets maxDistance asynchronously on init, and recalculates
-  // zoomSpeed/rotateSpeed on every camera "change" event. Re-assert our
-  // values, and keep label size / declutter / pin size in sync with zoom.
-  setTimeout(() => {
-    Globe.controls().maxDistance = 330;
-  }, 0);
-
-  Globe.controls().addEventListener('change', () => {
-    Globe.controls().rotateSpeed = rotateSpeedForViewport();
-    Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
-
+  controls.addEventListener('change', () => {
     currentAltitude = Globe.pointOfView().altitude;
     updatePinScale(currentAltitude);
-    scheduleLabelDeclutter();
   });
 
-  Globe.controls().addEventListener('end', applyLabelDeclutter);
+  const refreshCountries = () => {
+    Globe
+      .polygonCapColor(countryDisplayColor)
+      .polygonStrokeColor(countryStrokeColor)
+      .polygonAltitude(feature => featureCountrySlug(feature) === activeCountrySlug ? 0.008 : 0.004);
+  };
 
-  updatePinScale(currentAltitude);
-
-  Globe.pointOfView(
-    { lat: 31.324, lng: 45.636, altitude: 0.42 },
-    0
-  );
-
-  async function loadCountries() {
-    try {
-      const response = await fetch(COUNTRY_GEOJSON_URL);
-      if (!response.ok) {
-        throw new Error(`Countries fetch failed: ${response.status}`);
-      }
-
-      const geojson = await response.json();
-      const inAtlas = coordinates => {
-        if (!Array.isArray(coordinates) || !coordinates.length) return false;
-        if (typeof coordinates[0] === 'number') {
-          const [lng, lat] = coordinates;
-          return lng >= -20 && lng <= 60 && lat >= 10 && lat <= 58;
-        }
-        return coordinates.some(inAtlas);
-      };
-      const atlasFeatures = Array.isArray(geojson.features)
-        ? geojson.features.filter(feature =>
-            inAtlas(feature.geometry?.coordinates)
-          )
-        : [];
-
-      Globe.polygonsData(atlasFeatures);
-    } catch (error) {
-      console.warn('Could not load country borders:', error);
-    }
-  }
-
-  function refresh() {
-    selectedYear = Number(slider.value);
+  function refreshUI() {
+    const site = byId[selectedSiteId];
+    slider.value = String(selectedYear);
     yearLabel.textContent = formatYear(selectedYear);
-
-    const [title, description] = periodFor(selectedYear);
+    const [title, desc] = periodFor(selectedYear);
     periodTitle.textContent = title;
-    periodDescription.textContent = description;
+    periodDescription.textContent = desc;
 
-    const visible = visibleSites();
-
-    if (
-      selectedSiteId &&
-      !visible.some(site => site.id === selectedSiteId)
-    ) {
-      selectedSiteId = null;
-    }
-
-    Globe.htmlElementsData(visible);
+    Globe.htmlElementsData(visibleSites());
     Globe.arcsData(visibleConnections());
-    applyLabelDeclutter();
+
+    requestAnimationFrame(() => {
+      globeHost.querySelectorAll('.city-pin').forEach(marker => {
+        const active = marker.dataset.siteId === selectedSiteId;
+        marker.classList.toggle('is-active', active);
+        marker.classList.toggle('has-label', active);
+      });
+      const activeMarker = globeHost.querySelector(`[data-site-id="${selectedSiteId}"]`);
+      activeMarker?.classList.add('is-arriving');
+      setTimeout(() => activeMarker?.classList.remove('is-arriving'), 700);
+    });
+
+    refreshCountries();
+    if (site) updateCard(site);
   }
 
-  function selectSite(site, fly = false, storyTitle = null) {
-    if (!site) return;
-
-    selectedSiteId = site.id;
-    activeCountrySlug = site.regionSlug || activeCountrySlug;
-    visitedCountrySlugs.add(activeCountrySlug);
-    refreshCountryHighlight();
-
-    if (fly) {
-      Globe.controls().autoRotate = false;
-      currentAltitude = 0.40;
-      updatePinScale(currentAltitude);
-      Globe.pointOfView(
-        {
-          lat: site.lat,
-          lng: site.lng,
-          altitude: 0.40
-        },
-        1200
-      );
-      setTimeout(applyLabelDeclutter, 1250); // recompute once the fly-to settles
-    }
-
+  function updateCard(site) {
     infoCard.classList.remove('is-hidden');
-    cardEra.textContent =
-      storyTitle || `${formatYear(site.start)} · ${site.culture}`;
+    cardEra.textContent = `${formatYear(site.start)} · ${site.culture}`;
     cardTitle.textContent = site.name;
     cardText.textContent = site.text;
     cardMeta.innerHTML = `
@@ -606,268 +260,180 @@
       <span><b>Technique:</b> ${site.technique}</span>
       <span><b>Visible by:</b> ${formatYear(site.start)}</span>
     `;
-
     regionLink.hidden = false;
     regionLink.textContent = `Explore ${site.region} →`;
-    regionLink.href =
-      `./region.html?region=${encodeURIComponent(site.regionSlug)}&from=${encodeURIComponent(site.id)}`;
+    regionLink.href = `./region.html?region=${encodeURIComponent(site.regionSlug)}&from=${encodeURIComponent(site.id)}`;
 
     if (window.gsap) {
-      gsap.fromTo(
-        [cardEra, cardTitle, cardText, cardMeta, regionLink],
+      gsap.fromTo(infoCard,
+        { opacity: 0, x: 26, yPercent: -50 },
+        { opacity: 1, x: 0, yPercent: -50, duration: .55, ease: 'power3.out', overwrite: true }
+      );
+      gsap.fromTo([cardEra, cardTitle, cardText, cardMeta, regionLink],
         { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.48, stagger: 0.045, ease: 'power2.out', overwrite: true }
+        { opacity: 1, y: 0, duration: .42, stagger: .04, ease: 'power2.out', overwrite: true }
       );
     }
-
-    refresh();
   }
 
-  slider.addEventListener('input', () => {
-    stopStory();
-    scrollSyncEnabled = false;
-    revealedSiteIds = new Set(sites.filter(site => site.start <= Number(slider.value)).map(site => site.id));
-    refresh();
-  });
-
-  toggle.addEventListener('change', refresh);
-
-  document.querySelectorAll('[data-year]').forEach(button => {
-    button.addEventListener('click', () => {
-      stopStory();
-      scrollSyncEnabled = false;
-      slider.value = button.dataset.year;
-      revealedSiteIds = new Set(sites.filter(site => site.start <= Number(slider.value)).map(site => site.id));
-      refresh();
-    });
-  });
-
-  closeCard.addEventListener('click', () => {
-    selectedSiteId = null;
-    infoCard.classList.add('is-hidden');
-    refresh();
-  });
-
-  const wait = ms =>
-    new Promise(resolve => setTimeout(resolve, ms));
-
-  const clamp01 = value => Math.max(0, Math.min(1, value));
-  const smoothstep = value => {
-    const t = clamp01(value);
-    return t * t * (3 - 2 * t);
-  };
-
-  const lerp = (a, b, t) => a + (b - a) * t;
-
-  const lerpLongitude = (a, b, t) => {
-    let delta = b - a;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-    return a + delta * t;
-  };
-
-  const closeAltitudeFor = site => site?.importance >= 5 ? 0.38 : 0.44;
-  const transitionFarAltitude = 1.55;
-
-  function routeCountrySetThrough(index) {
-    return new Set(
-      itineraryRoute
-        .slice(0, Math.max(0, index) + 1)
-        .map(step => byId[step.site]?.regionSlug)
-        .filter(Boolean)
-    );
-  }
-
-  function setNarrativeState(index) {
-    const boundedIndex = Math.max(0, Math.min(itineraryRoute.length - 1, index));
-    if (boundedIndex === routeStepIndex && scrollSyncEnabled) return;
-
-    routeStepIndex = boundedIndex;
-    scrollSyncEnabled = true;
-
-    const step = itineraryRoute[boundedIndex];
+  function setStep(index, { fly = true } = {}) {
+    const bounded = Math.max(0, Math.min(itineraryRoute.length - 1, index));
+    routeStepIndex = bounded;
+    const step = itineraryRoute[bounded];
     const site = byId[step.site];
     if (!site) return;
 
-    revealedSiteIds = new Set(
-      itineraryRoute
-        .slice(0, boundedIndex + 1)
-        .map(item => item.site)
-    );
-
-    selectedYear = step.year;
-    slider.value = step.year;
+    revealedSiteIds = new Set(itineraryRoute.slice(0, bounded + 1).map(item => item.site));
+    visitedCountrySlugs = new Set(itineraryRoute.slice(0, bounded + 1).map(item => item.country));
     selectedSiteId = site.id;
-    activeCountrySlug = site.regionSlug || activeCountrySlug;
-    visitedCountrySlugs = routeCountrySetThrough(boundedIndex);
+    selectedYear = step.year;
+    activeCountrySlug = step.country;
+    refreshUI();
 
-    refreshCountryHighlight();
-    refresh();
-    selectSite(site, false);
-
-    if (window.gsap) {
-      gsap.fromTo(
-        yearLabel,
-        { opacity: 0.25, y: 8 },
-        { opacity: 1, y: 0, duration: 0.42, ease: 'power2.out', overwrite: true }
-      );
-    }
+    if (fly) flyToSite(site, bounded > 0 ? byId[itineraryRoute[bounded - 1].site] : null);
   }
 
-  function setCameraFromScroll(progress) {
-    const lastIndex = itineraryRoute.length - 1;
-    if (lastIndex < 1) return;
+  function flyToSite(site, previousSite = null) {
+    const closeAltitude = site.importance >= 5 ? 0.20 : 0.27;
+    const sameCountry = previousSite?.regionSlug === site.regionSlug;
 
-    const routePosition = clamp01(progress) * lastIndex;
-    const fromIndex = Math.min(lastIndex - 1, Math.floor(routePosition));
-    const local = routePosition - fromIndex;
-    const toIndex = Math.min(lastIndex, fromIndex + 1);
-
-    const fromSite = byId[itineraryRoute[fromIndex].site];
-    const toSite = byId[itineraryRoute[toIndex].site];
-    if (!fromSite || !toSite) return;
-
-    const countryChanges = fromSite.regionSlug !== toSite.regionSlug;
-
-    // Switch the narrative state after the camera has crossed most of the trip.
-    // This makes the new country fill with colour as we arrive there.
-    const activeIndex = local < 0.72 ? fromIndex : toIndex;
-    setNarrativeState(activeIndex);
-
-    let travelT;
-    let altitude;
-
-    if (countryChanges) {
-      // Big cinematic movement for every country change:
-      // CLOSE → ZOOM OUT → TRAVEL → ZOOM IN.
-      if (local < 0.28) {
-        const t = smoothstep(local / 0.28);
-        travelT = 0;
-        altitude = lerp(closeAltitudeFor(fromSite), transitionFarAltitude, t);
-      } else if (local < 0.68) {
-        const t = smoothstep((local - 0.28) / 0.40);
-        travelT = t;
-        altitude = transitionFarAltitude;
-      } else {
-        const t = smoothstep((local - 0.68) / 0.32);
-        travelT = 1;
-        altitude = lerp(transitionFarAltitude, closeAltitudeFor(toSite), t);
-      }
-    } else {
-      // Cities within the same country get a smaller local pan, without
-      // pretending that we have left the country and come back again.
-      travelT = smoothstep(local);
-      const midLift = Math.sin(Math.PI * local) * 0.18;
-      altitude = lerp(closeAltitudeFor(fromSite), closeAltitudeFor(toSite), travelT) + midLift;
-    }
-
-    const lat = lerp(fromSite.lat, toSite.lat, travelT);
-    const lng = lerpLongitude(fromSite.lng, toSite.lng, travelT);
-
-    currentAltitude = altitude;
-    updatePinScale(currentAltitude);
-    Globe.pointOfView({ lat, lng, altitude }, 0);
-    scheduleLabelDeclutter(20);
-  }
-
-  function setupScrollItinerary() {
-    const experience = document.getElementById('itineraryExperience');
-    if (!experience || !window.gsap || !window.ScrollTrigger) {
-      setNarrativeState(0);
-      Globe.pointOfView(
-        { lat: byId.uruk?.lat || 31.324, lng: byId.uruk?.lng || 45.636, altitude: 0.38 },
-        0
-      );
+    if (!window.gsap || sameCountry) {
+      Globe.pointOfView({ lat: site.lat, lng: site.lng, altitude: sameCountry ? .34 : closeAltitude }, sameCountry ? 1100 : 1500);
       return;
     }
 
-    gsap.registerPlugin(ScrollTrigger);
+    const start = Globe.pointOfView();
+    const state = { lat: start.lat, lng: start.lng, altitude: start.altitude };
+    const timeline = gsap.timeline();
 
-    visitedCountrySlugs = new Set(['iraq']);
-    activeCountrySlug = 'iraq';
-    setNarrativeState(0);
-    Globe.pointOfView(
-      { lat: byId.uruk?.lat || 31.324, lng: byId.uruk?.lng || 45.636, altitude: 0.38 },
-      0
-    );
-
-    ScrollTrigger.create({
-      trigger: experience,
-      start: 'top top',
-      end: 'bottom bottom',
-      scrub: true,
-      invalidateOnRefresh: true,
-      onUpdate(self) {
-        setCameraFromScroll(self.progress);
-      }
-    });
-
-    gsap.fromTo(
-      '.atlas-title',
-      { opacity: 0, x: -24 },
-      { opacity: 1, x: 0, duration: 1.05, ease: 'power3.out' }
-    );
-
-    gsap.fromTo(
-      '.globe-wrap',
-      { opacity: 0, scale: 0.96 },
-      { opacity: 1, scale: 1, duration: 1.2, ease: 'power2.out' }
-    );
+    timeline
+      .to(state, {
+        altitude: 1.75,
+        duration: .82,
+        ease: 'power2.inOut',
+        onUpdate: () => Globe.pointOfView(state, 0)
+      })
+      .to(state, {
+        lat: site.lat,
+        lng: site.lng,
+        duration: 1.05,
+        ease: 'power2.inOut',
+        onUpdate: () => Globe.pointOfView(state, 0)
+      })
+      .to(state, {
+        altitude: closeAltitude,
+        duration: 1.05,
+        ease: 'power3.inOut',
+        onUpdate: () => Globe.pointOfView(state, 0)
+      });
   }
 
+  function jumpToSite(site) {
+    const index = itineraryRoute.findIndex(step => step.site === site.id);
+    if (index >= 0) setStep(index);
+  }
+
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   async function playStory() {
     stopStory(false);
-    scrollSyncEnabled = false;
-    revealedSiteIds = new Set(sites.map(site => site.id));
     storyPlaying = true;
-    const run = ++storyRun;
+    longPressTriggered = true;
+    holdHint.classList.add('is-hidden');
+    const token = ++storyToken;
+    controls.enableZoom = false;
 
-    storyButton.classList.add('is-playing');
-    storyButton.textContent = 'Ⅱ Pause story';
-    Globe.controls().autoRotate = false;
-
-    for (const step of story) {
-      if (!storyPlaying || run !== storyRun) break;
-
-      slider.value = step.year;
-      refresh();
-
-      const site = byId[step.site];
-      selectSite(site, true, step.title);
-      await wait(step.duration || 4500);
+    for (let i = routeStepIndex; i < itineraryRoute.length; i++) {
+      if (!storyPlaying || token !== storyToken) break;
+      setStep(i, { fly: i !== routeStepIndex || i === 0 });
+      await wait(i === 0 ? 2200 : 3500);
     }
 
-    if (run === storyRun) stopStory(false);
+    if (token === storyToken) {
+      storyPlaying = false;
+      controls.enableZoom = true;
+    }
   }
 
   function stopStory(increment = true) {
     storyPlaying = false;
-    if (increment) storyRun++;
-
-    storyButton.classList.remove('is-playing');
-    storyButton.textContent = '▶ Story mode';
+    controls.enableZoom = true;
+    if (increment) storyToken++;
   }
 
-  storyButton.addEventListener('click', () => {
-    if (storyPlaying) stopStory();
-    else playStory();
+  function beginHold(event) {
+    if (storyPlaying) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    holdStartedAt = performance.now();
+    longPressTriggered = false;
+    holdHint.classList.add('is-holding');
+    holdTimer = window.setTimeout(() => {
+      longPressTriggered = true;
+      holdHint.classList.remove('is-holding');
+      playStory();
+    }, 2000);
+  }
+
+  function cancelHold() {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+    holdHint.classList.remove('is-holding');
+  }
+
+  globeHost.addEventListener('pointerdown', beginHold);
+  globeHost.addEventListener('pointerup', cancelHold);
+  globeHost.addEventListener('pointercancel', cancelHold);
+  globeHost.addEventListener('pointerleave', cancelHold);
+
+  slider.addEventListener('input', () => {
+    stopStory();
+    const year = Number(slider.value);
+    let index = 0;
+    itineraryRoute.forEach((step, i) => {
+      if (step.year <= year) index = i;
+    });
+    setStep(index, { fly: true });
   });
+
+  document.querySelectorAll('[data-year]').forEach(button => {
+    button.addEventListener('click', () => {
+      stopStory();
+      const year = Number(button.dataset.year);
+      slider.value = String(year);
+      slider.dispatchEvent(new Event('input'));
+    });
+  });
+
+  toggle.addEventListener('change', () => Globe.arcsData(visibleConnections()));
+
+  closeCard.addEventListener('click', () => {
+    infoCard.classList.add('is-hidden');
+  });
+
+  async function loadCountries() {
+    try {
+      const response = await fetch(COUNTRY_GEOJSON_URL);
+      if (!response.ok) throw new Error(`Countries fetch failed: ${response.status}`);
+      const geojson = await response.json();
+      Globe.polygonsData(Array.isArray(geojson.features) ? geojson.features : []);
+      refreshCountries();
+    } catch (error) {
+      console.warn('Could not load country borders:', error);
+    }
+  }
 
   function resize() {
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
-    Globe.controls().rotateSpeed = rotateSpeedForViewport();
     const renderer = Globe.renderer();
-    if (renderer) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-    }
-    applyLabelDeclutter();
+    if (renderer) renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
   }
 
   window.addEventListener('resize', resize);
 
   loadCountries();
   resize();
-  setupScrollItinerary();
+  setStep(0, { fly: false });
+  Globe.pointOfView({ lat: byId.uruk?.lat || 31.324, lng: byId.uruk?.lng || 45.636, altitude: 0.20 }, 0);
+  updatePinScale(.20);
 })();

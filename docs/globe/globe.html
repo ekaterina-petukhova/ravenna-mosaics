@@ -3,91 +3,82 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mosaic Atlas — Through Time</title>
+  <title>Interactive Mosaic Itinerary</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./globe.css?v=3" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./globe.css?v=6" />
   <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
-  <div id="itineraryExperience" class="itinerary-experience">
   <main class="atlas-shell">
-    <aside class="atlas-sidebar">
-      <div class="sidebar-top">
-        <a class="back-link" href="../index.html">← Mosaic Mosaic</a>
-        <button id="storyButton" class="story-button" type="button">▶ Story mode</button>
+    <header class="atlas-header">
+      <a class="back-link" href="../index.html">← Mosaic Mosaic</a>
+      <div class="atlas-heading">
+        <span>Interactive Mosaic Itinerary</span>
+        <p>Hold the globe for 2 seconds to begin the journey.</p>
+      </div>
+    </header>
+
+    <section class="globe-stage" aria-label="Interactive mosaic globe">
+      <div class="globe-wrap">
+        <div id="globe"></div>
       </div>
 
-      <header class="atlas-title">
-        <span>Interactive Mosaic Itinerary</span>
-        <h1>5,000 years of mosaic</h1>
-        <p>Scroll through the journey. Each new centre appears in sequence as the camera travels with the history of mosaic.</p>
-      </header>
+      <div id="holdHint" class="hold-hint" aria-hidden="true">
+        <div class="hold-ring"><span></span></div>
+        <strong>Hold to begin</strong>
+        <small>2 seconds</small>
+      </div>
 
-      <section id="infoCard" class="info-card" aria-live="polite">
+      <aside id="infoCard" class="info-card is-hidden" aria-live="polite">
         <div class="card-topline">
           <div id="cardEra" class="card-era">Explore the atlas</div>
           <button id="closeCard" class="close-card" type="button" aria-label="Close">×</button>
         </div>
-        <h2 id="cardTitle">Choose a place</h2>
-        <p id="cardText">Select a mosaic centre to see when it emerged, where it belongs geographically and how it connects to the wider history of mosaic.</p>
+        <h2 id="cardTitle">Uruk</h2>
+        <p id="cardText"></p>
         <div id="cardMeta" class="card-meta"></div>
         <a id="regionLink" class="region-link" href="#" hidden>Explore region →</a>
-      </section>
+      </aside>
 
-      <section class="timeline-panel">
-        <div class="timeline-heading">
-          <div>
-            <span class="eyebrow">Time</span>
-            <strong id="yearLabel">3500 BCE</strong>
-          </div>
-          <label class="connection-toggle">
-            <input id="connectionsToggle" type="checkbox" checked />
-            <span>Show connections</span>
-          </label>
+      <div class="globe-vignette"></div>
+    </section>
+
+    <section class="timeline-panel" aria-label="Historical timeline">
+      <div class="timeline-main">
+        <div class="timeline-year">
+          <span class="eyebrow">Time</span>
+          <strong id="yearLabel">3500 BCE</strong>
         </div>
 
-        <input id="yearSlider" class="year-slider" type="range" min="-3500" max="1200" step="25" value="-3500" />
-
-        <div class="era-buttons" role="group" aria-label="Historical periods">
-          <button type="button" data-year="-3500">Origins</button>
-          <button type="button" data-year="-700">Early Mediterranean</button>
-          <button type="button" data-year="-350">Greek &amp; Hellenistic</button>
-          <button type="button" data-year="150">Roman world</button>
-          <button type="button" data-year="550">Late Antique &amp; Byzantine</button>
-          <button type="button" data-year="1100">Medieval</button>
+        <div class="timeline-track">
+          <input id="yearSlider" class="year-slider" type="range" min="-3500" max="1200" step="25" value="-3500" />
+          <div class="era-buttons" role="group" aria-label="Historical periods">
+            <button type="button" data-year="-3500">Origins</button>
+            <button type="button" data-year="-700">Early Mediterranean</button>
+            <button type="button" data-year="-350">Greek &amp; Hellenistic</button>
+            <button type="button" data-year="150">Roman world</button>
+            <button type="button" data-year="550">Late Antique &amp; Byzantine</button>
+            <button type="button" data-year="1100">Medieval</button>
+          </div>
         </div>
 
         <div class="timeline-caption">
           <span id="periodTitle">The first experiments</span>
-          <p id="periodDescription">Begin in Mesopotamia, where architectural surfaces were decorated with patterned clay cones in the fourth millennium BCE.</p>
+          <p id="periodDescription">Begin in Mesopotamia, where architectural surfaces were decorated with patterned clay cones.</p>
         </div>
-      </section>
-
-      <section class="legend-panel">
-        <div class="legend-heading">How to read the globe</div>
-        <div class="legend-list">
-          <span><i class="legend-dot"></i> Mosaic centre</span>
-          <span><i class="legend-line"></i> Historical connection</span>
-          <span><i class="legend-label"></i> Region / country label</span>
-        </div>
-        <p class="legend-note">Scroll to travel through time, drag to rotate, or start Story mode for an automatic journey.</p>
-      </section>
-    </aside>
-
-    <section class="globe-stage">
-      <div class="globe-wrap">
-        <div id="globe"></div>
       </div>
-      <div class="globe-vignette"></div>
+
+      <label class="connection-toggle">
+        <input id="connectionsToggle" type="checkbox" checked />
+        <span>Connections</span>
+      </label>
     </section>
   </main>
-  </div>
 
   <script src="./mosaic-sites.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-  <script src="./globe.js?v=4"></script>
+  <script src="./globe.js?v=6"></script>
 </body>
 </html>
