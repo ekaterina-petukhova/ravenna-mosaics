@@ -17,14 +17,18 @@
   let currentAltitude = BASE_ALTITUDE;
   let labelDeclutterTimer = null;
 
-  // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
-  // by finger/mouse travel distance. On a short mobile viewport the same
-  // physical swipe covers a much bigger fraction of the screen, so the same
-  // rotateSpeed value spins the globe far faster. Scale it down accordingly.
-  const rotateSpeedForViewport = () => {
+  // Two independent reasons rotation speed needs to scale, combined:
+  // 1) OrbitControls normalizes drag rotation by canvas pixel HEIGHT, so a
+  //    short mobile viewport turns the same swipe into a bigger rotation.
+  // 2) Rotating by a fixed angle sweeps a much bigger fraction of the
+  //    screen once zoomed in — you're seeing a smaller slice of the globe,
+  //    so the same motion looks much faster. (This is what globe.gl's own
+  //    internal, since-overridden logic was compensating for.)
+  const computeRotateSpeed = () => {
     const height = globeHost.clientHeight || REFERENCE_HEIGHT;
-    const factor = Math.min(1, height / REFERENCE_HEIGHT);
-    return BASE_ROTATE_SPEED * Math.max(0.35, factor);
+    const viewportFactor = Math.max(0.35, Math.min(1, height / REFERENCE_HEIGHT));
+    const altitudeFactor = Math.max(0.18, Math.min(1.3, currentAltitude / BASE_ALTITUDE));
+    return BASE_ROTATE_SPEED * viewportFactor * altitudeFactor;
   };
 
   const regionAnchors = [
@@ -389,7 +393,7 @@
   // zoom in past what any static image texture can resolve.
   Globe.controls().minDistance = 118;
   Globe.controls().maxDistance = 330;
-  Globe.controls().rotateSpeed = rotateSpeedForViewport();
+  Globe.controls().rotateSpeed = computeRotateSpeed();
   Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
   // globe.gl resets maxDistance asynchronously on init, and recalculates
@@ -400,7 +404,7 @@
   }, 0);
 
   Globe.controls().addEventListener('change', () => {
-    Globe.controls().rotateSpeed = rotateSpeedForViewport();
+    Globe.controls().rotateSpeed = computeRotateSpeed();
     Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
     currentAltitude = Globe.pointOfView().altitude;
@@ -557,7 +561,7 @@
   function resize() {
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
-    Globe.controls().rotateSpeed = rotateSpeedForViewport();
+    Globe.controls().rotateSpeed = computeRotateSpeed();
     const renderer = Globe.renderer();
     if (renderer) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
