@@ -9,6 +9,11 @@
   const story = window.MOSAIC_STORY || [];
   const byId = Object.fromEntries(sites.map(site => [site.id, site]));
 
+  const GLOBE_RADIUS = 100; // matches three-globe's default globe radius
+  const BASE_ALTITUDE = 1.78; // matches the initial pointOfView below
+  let currentAltitude = BASE_ALTITUDE;
+  let labelDeclutterTimer = null;
+
   const regionAnchors = [
     { id: 'label-iraq', name: 'Iraq', lat: 33.2, lng: 43.8, type: 'region', start: -3500 },
     { id: 'label-anatolia', name: 'Anatolia', lat: 39.0, lng: 35.0, type: 'region', start: -900 },
@@ -147,6 +152,105 @@
     ];
   };
 
+  const altitudeToLabelScale = altitude => {
+    // Keeps a label's on-screen size roughly constant as you zoom,
+    // instead of it ballooning the closer the camera gets.
+    const raw = (altitude + 1) / (BASE_ALTITUDE + 1);
+    return Math.min(1.35, Math.max(0.38, raw));
+  };
+
+  const updatePinScale = altitude => {
+    const scale = Math.min(1.1, Math.max(0.55, (altitude + 0.35) / (BASE_ALTITUDE + 0.35)));
+    globeHost.style.setProperty('--pin-scale', scale.toFixed(3));
+  };
+
+  // Is this geo point on the hemisphere currently facing the camera?
+  // (a screen projection alone doesn't know a point is hidden behind the globe)
+  const isFacingCamera = (lat, lng, altitude) => {
+    const camera = Globe.camera();
+    const p = Globe.getCoords(lat, lng, altitude);
+    const pLen = Math.hypot(p.x, p.y, p.z);
+    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+    const cLen = Math.hypot(cx, cy, cz);
+    if (!pLen || !cLen) return true;
+    const dot = (p.x * cx + p.y * cy + p.z * cz) / (pLen * cLen);
+    const horizonCos = GLOBE_RADIUS / cLen - 0.03; // small buffer for near-limb labels
+    return dot > horizonCos;
+  };
+
+  // Screen-space label declutter: project every candidate label, then keep
+  // the highest-priority ones and drop any that would visually collide.
+  // Region labels matter most when zoomed out and give way to specific
+  // site names as you zoom in close.
+  function applyLabelDeclutter() {
+    const candidates = visibleLabels();
+    const width = globeHost.clientWidth;
+    const height = globeHost.clientHeight;
+
+    if (!candidates.length || !width || !height) {
+      Globe.labelsData(candidates);
+      return;
+    }
+
+    const approxCharWidth = 7.4; // empirical, px/char at labelSize 1, labelResolution 2
+    const regionPriority = 260 + Math.max(0, currentAltitude - 0.5) * 500;
+
+    const scored = candidates
+      .map(item => {
+        const altitude = item.type === 'region'
+          ? 0.01
+          : item.id === selectedSiteId
+            ? 0.05
+            : 0.03;
+
+        if (!isFacingCamera(item.lat, item.lng, altitude)) return null;
+
+        const screen = Globe.getScreenCoords(item.lat, item.lng, altitude);
+        if (!screen) return null;
+
+        const priority = item.id === selectedSiteId
+          ? 1000
+          : item.type === 'region'
+            ? regionPriority
+            : (item.importance || 1) * 110;
+
+        const sizeMult = item.type === 'region'
+          ? 1.15
+          : item.id === selectedSiteId
+            ? 1.15
+            : 0.9;
+        const fontScale = altitudeToLabelScale(currentAltitude) * sizeMult;
+
+        const boxW = Math.max(26, (item.name || '').length * approxCharWidth * fontScale);
+        const boxH = 17 * fontScale;
+
+        return { item, screen, priority, boxW, boxH };
+      })
+      .filter(entry =>
+        entry &&
+        entry.screen.x > -entry.boxW && entry.screen.x < width + entry.boxW &&
+        entry.screen.y > -entry.boxH && entry.screen.y < height + entry.boxH
+      )
+      .sort((a, b) => b.priority - a.priority);
+
+    const margin = 4;
+    const overlaps = (a, b) =>
+      Math.abs(a.screen.x - b.screen.x) < (a.boxW + b.boxW) / 2 + margin &&
+      Math.abs(a.screen.y - b.screen.y) < (a.boxH + b.boxH) / 2 + margin;
+
+    const placed = [];
+    scored.forEach(entry => {
+      if (!placed.some(other => overlaps(entry, other))) placed.push(entry);
+    });
+
+    Globe.labelsData(placed.map(entry => entry.item));
+  }
+
+  function scheduleLabelDeclutter(delay = 140) {
+    clearTimeout(labelDeclutterTimer);
+    labelDeclutterTimer = setTimeout(applyLabelDeclutter, delay);
+  }
+
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
     .globeImageUrl(
@@ -212,13 +316,14 @@
     .labelLat('lat')
     .labelLng('lng')
     .labelText(item => item.name)
-    .labelSize(item =>
-      item.type === 'region'
+    .labelSize(item => {
+      const base = item.type === 'region'
         ? 1.15
         : item.id === selectedSiteId
           ? 1.15
-          : 0.9
-    )
+          : 0.9;
+      return base * altitudeToLabelScale(currentAltitude);
+    })
     .labelAltitude(item =>
       item.type === 'region'
         ? 0.01
@@ -249,18 +354,10 @@
   Globe.controls().maxDistance = 330;
   Globe.controls().rotateSpeed = 0.85;
   Globe.controls().zoomSpeed = 1.15;
-  
 
-  Globe.controls().autoRotate = false;
-  Globe.controls().enablePan = false;
-  Globe.controls().minDistance = 100;
-  Globe.controls().maxDistance = 330;
-  Globe.controls().rotateSpeed = 0.85;
-  Globe.controls().zoomSpeed = 1.15;
-
-// globe.gl resets maxDistance asynchronously on init, and recalculates
-// zoomSpeed/rotateSpeed on every camera "change" event. Re-assert our
-// values so they actually stick.
+  // globe.gl resets maxDistance asynchronously on init, and recalculates
+  // zoomSpeed/rotateSpeed on every camera "change" event. Re-assert our
+  // values, and keep label size / declutter / pin size in sync with zoom.
   setTimeout(() => {
     Globe.controls().maxDistance = 330;
   }, 0);
@@ -268,7 +365,16 @@
   Globe.controls().addEventListener('change', () => {
     Globe.controls().rotateSpeed = 0.85;
     Globe.controls().zoomSpeed = 1.15;
+
+    currentAltitude = Globe.pointOfView().altitude;
+    updatePinScale(currentAltitude);
+    scheduleLabelDeclutter();
   });
+
+  Globe.controls().addEventListener('end', applyLabelDeclutter);
+
+  updatePinScale(currentAltitude);
+
   Globe.pointOfView(
     { lat: 36, lng: 18, altitude: 1.78 },
     0
@@ -309,7 +415,7 @@
 
     Globe.htmlElementsData(visible);
     Globe.arcsData(visibleConnections());
-    Globe.labelsData(visibleLabels());
+    applyLabelDeclutter();
   }
 
   function selectSite(site, fly = false, storyTitle = null) {
@@ -319,6 +425,8 @@
 
     if (fly) {
       Globe.controls().autoRotate = false;
+      currentAltitude = 0.9;
+      updatePinScale(currentAltitude);
       Globe.pointOfView(
         {
           lat: site.lat,
@@ -327,6 +435,7 @@
         },
         1200
       );
+      setTimeout(applyLabelDeclutter, 1250); // recompute once the fly-to settles
     }
 
     infoCard.classList.remove('is-hidden');
@@ -411,6 +520,7 @@
   function resize() {
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
+    applyLabelDeclutter();
   }
 
   window.addEventListener('resize', resize);

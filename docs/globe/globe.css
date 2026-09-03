@@ -327,78 +327,75 @@ a { color: inherit; }
 
 .city-pin {
   position: relative;
-  width: 22px;
-  height: 30px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, -50%) scale(var(--pin-scale, 1));
   transition: transform .18s ease;
+  z-index: 10;
 }
 
 .city-pin__shape {
   position: absolute;
   inset: 0;
   display: block;
-  width: 22px;
-  height: 30px;
+  border-radius: 3px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #f4d488 0%, #d9a93e 45%, #b9832a 100%);
+  box-shadow:
+    0 0 0 1px rgba(255,235,180,.35) inset,
+    0 2px 6px rgba(0,0,0,.55),
+    0 0 10px rgba(216,168,68,.45);
+}
+
+.city-pin__shape::before {
+  /* grout line splitting the tile into four tesserae */
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
-    linear-gradient(
-      90deg,
-      #d9a93e 0%,
-      #d9a93e 50%,
-      #efc65e 50%,
-      #efc65e 100%
-    );
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  box-shadow: 0 4px 10px rgba(0,0,0,.42);
+    linear-gradient(rgba(6,7,10,.55) 0 0) center / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(6,7,10,.55) 0 0) center / 1px 100% no-repeat;
 }
 
 .city-pin__shape::after {
   content: "";
   position: absolute;
-  width: 8px;
-  height: 8px;
-  left: 7px;
-  top: 7px;
+  width: 4px;
+  height: 4px;
+  left: 50%;
+  top: 50%;
+  margin: -2px 0 0 -2px;
   border-radius: 50%;
-  background: rgba(255,255,255,.96);
+  background: rgba(255,255,255,.92);
+  transform: rotate(-45deg);
 }
 
 .city-pin:hover {
-  transform: translate(-50%, -100%) scale(1.12);
+  transform: translate(-50%, -50%) scale(calc(var(--pin-scale, 1) * 1.25));
   z-index: 20;
 }
 
 .city-pin.is-active {
-  width: 30px;
-  height: 40px;
-  transform: translate(-50%, -100%) scale(1.08);
+  width: 22px;
+  height: 22px;
   z-index: 30;
 }
 
 .city-pin.is-active .city-pin__shape {
-  width: 30px;
-  height: 40px;
-  background:
-    linear-gradient(
-      90deg,
-      #efc14e 0%,
-      #efc14e 50%,
-      #ffe17a 50%,
-      #ffe17a 100%
-    );
+  background: linear-gradient(135deg, #ffe9ad 0%, #efc14e 45%, #c9922f 100%);
   box-shadow:
-    0 0 0 3px rgba(255,220,115,.12),
-    0 0 18px rgba(255,210,87,.32),
-    0 8px 20px rgba(0,0,0,.48);
+    0 0 0 1px rgba(255,235,180,.5) inset,
+    0 0 0 4px rgba(239,193,78,.14),
+    0 0 20px rgba(255,205,90,.55),
+    0 4px 10px rgba(0,0,0,.6);
 }
 
 .city-pin.is-active .city-pin__shape::after {
-  width: 11px;
-  height: 11px;
-  left: 9.5px;
-  top: 9.5px;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
 }
