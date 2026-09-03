@@ -188,7 +188,7 @@
 
   function flyToSite(site,previousSite=null){
     const sameCountry=previousSite?.regionSlug===site.regionSlug;
-    const close=.58;
+    const close=.62;
     if(!window.gsap){Globe.pointOfView({lat:site.lat,lng:site.lng,altitude:close},1600);return}
     const p=Globe.pointOfView(); const s={lat:p.lat,lng:p.lng,altitude:p.altitude};
     const tl=gsap.timeline();
@@ -224,8 +224,16 @@
   async function loadCountries(){
     try{const r=await fetch(COUNTRY_GEOJSON_URL);if(!r.ok)throw new Error(r.status);const g=await r.json();Globe.polygonsData(Array.isArray(g.features)?g.features:[]);refreshCountries()}catch(e){console.warn('Could not load country borders',e)}
   }
-  function resize(){Globe.width(globeHost.clientWidth);Globe.height(globeHost.clientHeight);const r=Globe.renderer();if(r)r.setPixelRatio(Math.min(devicePixelRatio||1,1.45))}
+  function resize(){
+    const stage=document.querySelector('.globe-stage');
+    const w=stage?.clientWidth||innerWidth;
+    const h=stage?.clientHeight||innerHeight;
+    Globe.width(w);
+    Globe.height(h);
+    const r=Globe.renderer();
+    if(r)r.setPixelRatio(Math.min(devicePixelRatio||1,1.45));
+  }
   addEventListener('resize',resize);
   loadCountries(); resize(); setStep(0,{fly:false});
-  Globe.pointOfView({lat:byId.uruk?.lat||31.324,lng:byId.uruk?.lng||45.636,altitude:.74},0); updatePinScale(.74);
+  Globe.pointOfView({lat:byId.uruk?.lat||31.324,lng:byId.uruk?.lng||45.636,altitude:1.08},0); updatePinScale(1.08);
 })();
