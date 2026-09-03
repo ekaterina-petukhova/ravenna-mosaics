@@ -11,8 +11,21 @@
 
   const GLOBE_RADIUS = 100; // matches three-globe's default globe radius
   const BASE_ALTITUDE = 1.78; // matches the initial pointOfView below
+  const BASE_ROTATE_SPEED = 0.85;
+  const BASE_ZOOM_SPEED = 1.15;
+  const REFERENCE_HEIGHT = 700; // desktop-ish canvas height rotateSpeed was tuned against
   let currentAltitude = BASE_ALTITUDE;
   let labelDeclutterTimer = null;
+
+  // OrbitControls normalizes drag rotation by the canvas's pixel HEIGHT, not
+  // by finger/mouse travel distance. On a short mobile viewport the same
+  // physical swipe covers a much bigger fraction of the screen, so the same
+  // rotateSpeed value spins the globe far faster. Scale it down accordingly.
+  const rotateSpeedForViewport = () => {
+    const height = globeHost.clientHeight || REFERENCE_HEIGHT;
+    const factor = Math.min(1, height / REFERENCE_HEIGHT);
+    return BASE_ROTATE_SPEED * Math.max(0.35, factor);
+  };
 
   const regionAnchors = [
     { id: 'label-iraq', name: 'Iraq', lat: 33.2, lng: 43.8, type: 'region', start: -3500 },
@@ -254,7 +267,9 @@
   const Globe = window.Globe()(globeHost)
     .backgroundColor('rgba(0,0,0,0)')
     .globeImageUrl(
-      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+      // 4096px source instead of three-globe's bundled ~2K example texture —
+      // the old one is what was going soft/blurry on zoom-in.
+      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/planets/earth_atmos_4096.jpg'
     )
     .bumpImageUrl(
       'https://unpkg.com/three-globe/example/img/earth-topology.png'
@@ -263,6 +278,17 @@
     .showGraticules(true)
     .atmosphereColor('#5a8cff')
     .atmosphereAltitude(0.11)
+    .onGlobeReady(() => {
+      // Sharpen the texture at grazing/close viewing angles instead of
+      // leaving it on default (blurrier) filtering.
+      const material = Globe.globeMaterial ? Globe.globeMaterial() : null;
+      const renderer = Globe.renderer();
+      if (material && material.map && renderer) {
+        const maxAniso = renderer.capabilities.getMaxAnisotropy();
+        material.map.anisotropy = maxAniso;
+        material.map.needsUpdate = true;
+      }
+    })
 
     .polygonsData([])
     .polygonCapColor(() => 'rgba(0,0,0,0)')
@@ -346,14 +372,20 @@
           ? 0.22
           : 0.14
     )
-    .labelIncludeDot(item => item.type !== 'region');
+    // Site locations already have the custom tessera pin (htmlElement layer)
+    // marking them — the built-in label dot was drawing a second circle
+    // underneath it. Never show it.
+    .labelIncludeDot(() => false);
 
   Globe.controls().autoRotate = false;
   Globe.controls().enablePan = false;
-  Globe.controls().minDistance = 100;
+  // 118 instead of 100 (the bare surface): stops zoom right around where
+  // even the 4K texture starts turning to mush, instead of letting people
+  // zoom in past what any static image texture can resolve.
+  Globe.controls().minDistance = 118;
   Globe.controls().maxDistance = 330;
-  Globe.controls().rotateSpeed = 0.85;
-  Globe.controls().zoomSpeed = 1.15;
+  Globe.controls().rotateSpeed = rotateSpeedForViewport();
+  Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
   // globe.gl resets maxDistance asynchronously on init, and recalculates
   // zoomSpeed/rotateSpeed on every camera "change" event. Re-assert our
@@ -363,8 +395,8 @@
   }, 0);
 
   Globe.controls().addEventListener('change', () => {
-    Globe.controls().rotateSpeed = 0.85;
-    Globe.controls().zoomSpeed = 1.15;
+    Globe.controls().rotateSpeed = rotateSpeedForViewport();
+    Globe.controls().zoomSpeed = BASE_ZOOM_SPEED;
 
     currentAltitude = Globe.pointOfView().altitude;
     updatePinScale(currentAltitude);
@@ -520,6 +552,7 @@
   function resize() {
     Globe.width(globeHost.clientWidth);
     Globe.height(globeHost.clientHeight);
+    Globe.controls().rotateSpeed = rotateSpeedForViewport();
     applyLabelDeclutter();
   }
 
