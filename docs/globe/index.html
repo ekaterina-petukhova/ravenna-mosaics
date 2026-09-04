@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>
+    Ravenna — Tessera by Tessera
+  </title>
+
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
+
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      height: 1680vh;
+      overflow-x: hidden;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #mosaic,
+    #tessera3d {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #mosaic {
+      z-index: 1;
+    }
+
+    #tessera3d {
+      z-index: 3;
+      cursor: grab;
+      touch-action: pan-y;
+    }
+
+    #tessera3d.is-dragging {
+      cursor: grabbing;
+    }
+
+    #tessera3d.is-hidden {
+      pointer-events: none;
+    }
+
+    #bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+
+      width: 0;
+      height: 2px;
+
+      background: #d0a43c;
+    }
+
+    .brand {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      z-index: 10;
+
+      color: #cfad54;
+
+      font:
+        15px
+        Georgia,
+        serif;
+
+      letter-spacing: .18em;
+
+      pointer-events: none;
+    }
+
+    .step {
+      position: absolute;
+      top: 25px;
+      right: 28px;
+      z-index: 10;
+
+      color: #777;
+
+      font-size: 10px;
+
+      letter-spacing: .22em;
+      text-transform: uppercase;
+
+      pointer-events: none;
+    }
+
+    
+
+    #copy {
+      position: absolute;
+      left: 50%;
+      bottom: 7vh;
+      z-index: 10;
+
+      width:
+        min(
+          760px,
+          88vw
+        );
+
+      transform:
+        translateX(-50%);
+
+      text-align: center;
+
+      pointer-events: none;
+    }
+
+    .kicker {
+      margin-bottom: 10px;
+
+      color: #989898;
+
+      font-size: 10px;
+
+      letter-spacing: .28em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+
+      font:
+        400
+        clamp(
+          30px,
+          4.4vw,
+          60px
+        ) /
+        1.03
+        Georgia,
+        serif;
+
+      letter-spacing: -.02em;
+    }
+
+    p {
+      max-width: 620px;
+
+      margin:
+        12px
+        auto
+        0;
+
+      color: #989898;
+
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 40px;
+
+      background: #000;
+
+      color: #aaa;
+
+      text-align: center;
+
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    @media (
+      max-width: 700px
+    ) {
+      .brand {
+        top: 18px;
+        left: 18px;
+      }
+
+      .step {
+        top: 19px;
+        right: 18px;
+      }
+
+      #copy {
+        bottom: 10vh;
+      }
+    }
+
+    #title {
+      margin: 0;
+
+      color:
+        rgba(
+          255,
+          255,
+          255,
+          0.94
+        );
+
+      /* font-family:
+        "Nunito",
+        sans-serif; */
+
+      font-size:
+        clamp(
+          39px,
+          4vw,
+          60px
+        );
+
+      font-weight: 400;
+
+      line-height: 1.1;
+
+      letter-spacing: 0.025em;
+
+      transition:
+        opacity 0.4s ease;
+    }
+
+    #desc {
+      color:  #777;;
+      transform: translateY(20px);
+    }
+
+    #enter-atlas {
+      display: inline-block;
+      margin-top: 26px;
+
+      color: #cfad54;
+      text-decoration: none;
+
+      font-size: 11px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+
+      opacity: 0;
+      transform: translateY(12px);
+
+      pointer-events: none;
+
+      transition:
+        opacity .7s ease,
+        transform .7s ease;
+    }
+
+    #enter-atlas.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    
+
+    /* CINEMATIC INTERLUDE */
+    #tessera-field {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s linear;
+    }
+
+    #interlude {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: grid;
+      place-items: center;
+      padding: 8vw;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 50%, rgba(0,48,92,.14), transparent 46%);
+    }
+
+    #interlude.is-visible {
+      visibility: visible;
+    }
+
+    .interlude-copy {
+      width: min(1080px, 88vw);
+      text-align: center;
+      transform: translateY(12px) scale(.985);
+      opacity: 0;
+      transition: none;
+    }
+
+    #interlude-title {
+      margin: 0;
+      color: rgba(255,255,255,.97);
+      font-family: "Nunito", system-ui, sans-serif;
+      font-size: clamp(44px, 8vw, 126px);
+      font-weight: 600;
+      line-height: .92;
+      letter-spacing: -.055em;
+      text-transform: uppercase;
+      text-wrap: balance;
+      text-shadow: 0 0 34px rgba(43,188,255,.08);
+    }
+
+    #interlude-kicker {
+      margin-bottom: 18px;
+      color: rgba(143,213,255,.68);
+      font-size: 10px;
+      letter-spacing: .34em;
+      text-transform: uppercase;
+    }
+
+    #interlude-progress {
+      position: absolute;
+      left: 50%;
+      bottom: 4.2vh;
+      width: min(360px, 58vw);
+      height: 1px;
+      transform: translateX(-50%);
+      overflow: hidden;
+      background: rgba(255,255,255,.13);
+    }
+
+    #interlude-progress > i {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(0);
+      transform-origin: left center;
+      background: linear-gradient(90deg, #1ec8ff, #436cff, #d3aa45);
+      box-shadow: 0 0 18px rgba(46,186,255,.55);
+    }
+
+    #scroll-cue {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      z-index: 12;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,.48);
+      font-size: 9px;
+      letter-spacing: .24em;
+      text-transform: uppercase;
+      pointer-events: none;
+      transition: opacity .45s ease;
+    }
+
+    #scroll-cue::after {
+      content: "";
+      width: 28px;
+      height: 1px;
+      background: currentColor;
+      animation: cuePulse 1.9s ease-in-out infinite;
+    }
+
+    @keyframes cuePulse {
+      0%,100% { transform: scaleX(.35); opacity: .35; }
+      50% { transform: scaleX(1); opacity: 1; }
+    }
+
+    #stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 11;
+      pointer-events: none;
+      box-shadow: inset 0 0 170px rgba(0,0,0,.72);
+      opacity: .72;
+    }
+
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+</script>
+</head>
+
+<body>
+  <div id="stage">
+
+    <canvas id="mosaic">
+    </canvas>
+    <canvas
+      id="tessera3d"
+      aria-label="Interactive blue glass tessera"
+    ></canvas>
+
+    <canvas id="tessera-field" aria-hidden="true"></canvas>
+
+    <section id="interlude" aria-hidden="true">
+      <div class="interlude-copy" id="interlude-copy">
+        <div id="interlude-kicker">A mosaic is never only an image</div>
+        <h2 id="interlude-title">One piece</h2>
+      </div>
+      <div id="interlude-progress" aria-hidden="true"><i></i></div>
+    </section>
+
+    <div id="scroll-cue">Scroll to transform</div>
+
+    <div id="bar">
+    </div>
+
+    
+
+    
+
+    <div id="copy">
+
+      <h1 id="title">
+        Every story begins with a single piece
+      </h1>
+
+      <p id="desc">
+        Scroll down to continue
+      </p>
+       <a href="./globe/globe.html" id="enter-atlas">
+    Explore the mosaic world →
+        </a>
+    </div>
+   
+
+    
+
+    <div id="loading">
+      Loading…
+    </div>
+
+  </div>
+
+  <script src="./app.js?v=14"></script>
+  <script
+    type="module"
+    src="./tessera-3d.js?v=14"
+  ></script>
+</body>
+</html>

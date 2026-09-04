@@ -239,39 +239,52 @@
 
     fieldCtx.clearRect(0, 0, fieldW, fieldH);
 
-    const active = cinematicProgress > .12 && cinematicProgress < .58;
+    /*
+      Keep the flying tesserae alive well into the mosaic handoff.
+      During the last third they decelerate, drift inward and lose
+      their neon bloom while the real mosaic cells begin to settle.
+      This creates one continuous material transition instead of a cut.
+    */
+    const active = cinematicProgress > .12 && cinematicProgress < .79;
     if (active) {
-      const local = clamp((cinematicProgress - .12) / .46);
-      const cx = fieldW * .5 + pointerX * 34;
-      const cy = fieldH * .5 + pointerY * 24;
+      const local = clamp((cinematicProgress - .12) / .67);
+      const handoff = smooth(.60, .98, local);
+      const cx = fieldW * .5 + pointerX * (34 * (1 - handoff * .7));
+      const cy = fieldH * .5 + pointerY * (24 * (1 - handoff * .7));
       const maxRadius = Math.hypot(fieldW, fieldH) * .72;
 
       for (let i = 0; i < fieldTesserae.length; i++) {
         const t = fieldTesserae[i];
-        let z = (t.depth - local * 1.55 - time * .012 + 2) % 1;
+        let z = (t.depth - local * 1.30 - time * .009 + 2) % 1;
         const travel = 1 - z;
         const eased = travel * travel;
-        const radius = 24 + eased * maxRadius;
-        const a = t.angle + t.drift * time + pointerX * .04;
+
+        /* pull the star-field gently back toward the image plane */
+        const radialCollapse = 1 - handoff * .62;
+        const radius = (24 + eased * maxRadius) * radialCollapse;
+        const a = t.angle + t.drift * time * (1 - handoff * .72) + pointerX * .04;
         const x = cx + Math.cos(a) * radius;
         const y = cy + Math.sin(a) * radius * .72;
-        const size = t.size * (.35 + travel * 1.75);
-        const alpha = Math.min(1, travel * 1.8) * (1 - smooth(.9, 1, travel));
+
+        const baseSize = t.size * (.35 + travel * 1.75);
+        const size = baseSize * (1 - handoff * .48);
+        const travelAlpha = Math.min(1, travel * 1.8) * (1 - smooth(.9, 1, travel));
+        const alpha = travelAlpha * (1 - smooth(.70, 1, local));
 
         fieldCtx.save();
         fieldCtx.translate(x, y);
-        fieldCtx.rotate(a + time * t.spin * .05);
+        fieldCtx.rotate((a + time * t.spin * .05) * (1 - handoff * .72));
         fieldCtx.globalAlpha = alpha * .95;
         fieldCtx.shadowColor = t.color;
-        fieldCtx.shadowBlur = 10 + travel * 16;
+        fieldCtx.shadowBlur = (10 + travel * 16) * (1 - handoff * .82);
         fieldCtx.fillStyle = t.color;
-        const r = Math.max(1.5, size * .16);
+        const r = Math.max(1.25, size * (.16 - handoff * .05));
         fieldCtx.beginPath();
         fieldCtx.roundRect(-size/2, -size/2, size, size, r);
         fieldCtx.fill();
-        fieldCtx.globalAlpha = alpha * .35;
-        fieldCtx.strokeStyle = "rgba(255,255,255,.85)";
-        fieldCtx.lineWidth = .75;
+        fieldCtx.globalAlpha = alpha * .32;
+        fieldCtx.strokeStyle = "rgba(255,255,255,.82)";
+        fieldCtx.lineWidth = .7;
         fieldCtx.stroke();
         fieldCtx.restore();
       }
@@ -288,7 +301,7 @@
     cinematicProgress = progress;
 
     const start = .10;
-    const end = .68;
+    const end = .73;
     const local = clamp((progress - start) / (end - start));
     const visibility = smooth(0, .055, local) * (1 - smooth(.94, 1, local));
 
@@ -2682,7 +2695,7 @@
       return;
     }
 
-    if (progress < 0.58) {
+    if (progress < 0.72) {
       copy.style.opacity = "0";
       return;
     }
@@ -2691,7 +2704,7 @@
       "to become a world of colour";
     desc.textContent = "";
     copy.style.opacity = String(
-      smooth(0.62, 0.72, progress)
+      smooth(0.76, 0.86, progress)
     );
   }
 
@@ -2799,15 +2812,40 @@
     );
 
 
-    const assemblyProgress =
+    /*
+      Long, overlapping handoff from the flying tessera field to the
+      actual mosaic. The first cells begin to settle while the neon
+      squares are still visible; the image then reveals over a much
+      larger scroll distance.
+    */
+    const assemblyRaw =
       clamp(
-        (progress - 0.54) / 0.46
+        (progress - 0.55) / 0.43
       );
+
+    const assemblyProgress =
+      smooth(
+        0,
+        1,
+        assemblyRaw
+      );
+
+    const mosaicOpacity =
+      smooth(
+        0.015,
+        0.18,
+        assemblyRaw
+      );
+
+    ctx.save();
+    ctx.globalAlpha = mosaicOpacity;
 
     drawAssembly(
       assemblyProgress,
       rect
     );
+
+    ctx.restore();
 
 
     /*
