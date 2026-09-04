@@ -500,7 +500,7 @@ function updateScrollEffect() {
       window.scrollY /
       (
         window.innerHeight *
-        2.35
+        3.45
       )
     );
 
@@ -510,14 +510,14 @@ function updateScrollEffect() {
     Phase 3: dissolve it into black before the typographic interlude.
   */
   const expand = smoothstep(
-    0.08,
-    0.74,
+    0.06,
+    0.80,
     flightProgress
   );
 
   const dissolve = smoothstep(
-    0.76,
-    0.96,
+    0.82,
+    0.985,
     flightProgress
   );
 

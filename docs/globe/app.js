@@ -287,10 +287,10 @@
   function updateCinematicInterlude(progress) {
     cinematicProgress = progress;
 
-    const start = .12;
-    const end = .56;
+    const start = .10;
+    const end = .68;
     const local = clamp((progress - start) / (end - start));
-    const visibility = smooth(0, .07, local) * (1 - smooth(.90, 1, local));
+    const visibility = smooth(0, .055, local) * (1 - smooth(.94, 1, local));
 
     if (interlude) {
       interlude.classList.toggle("is-visible", visibility > .001);
@@ -307,11 +307,11 @@
     }
 
     const states = [
-      [0.00, 0.18, "One piece", "A mosaic begins with a single tessera"],
-      [0.18, 0.38, "Becomes a pattern", "Repetition gives matter a rhythm"],
-      [0.38, 0.58, "Pattern becomes memory", "Images preserve places, beliefs and power"],
-      [0.58, 0.78, "Memory travels", "Techniques move across cities and cultures"],
-      [0.78, 1.01, "Across time. Across worlds.", "Follow the itinerary of mosaic"],
+      [0.00, 0.20, "One piece", "A mosaic begins with a single tessera"],
+      [0.20, 0.40, "Becomes a pattern", "Repetition gives matter a rhythm"],
+      [0.40, 0.60, "Pattern becomes memory", "Images preserve places, beliefs and power"],
+      [0.60, 0.80, "Memory travels", "Techniques move across cities and cultures"],
+      [0.80, 1.01, "Across time. Across worlds.", "Follow the itinerary of mosaic"],
     ];
 
     let state = states[0];
@@ -328,7 +328,7 @@
     if (interludeCopy) {
       const span = state[1] - state[0];
       const stateLocal = clamp((local - state[0]) / span);
-      const fade = smooth(.02, .20, stateLocal) * (1 - smooth(.80, .98, stateLocal));
+      const fade = smooth(.01, .14, stateLocal) * (1 - smooth(.86, .99, stateLocal));
       interludeCopy.style.opacity = String(fade);
       interludeCopy.style.transform = `translateY(${(1 - fade) * 16}px) scale(${.985 + fade * .015})`;
       interludeCopy.style.filter = `blur(${(1 - fade) * 7}px)`;
