@@ -21,14 +21,6 @@
   const desc = document.getElementById("desc");
   const copy = document.getElementById("copy");
 
-  const tesseraField = document.getElementById("tessera-field");
-  const interlude = document.getElementById("interlude");
-  const interludeCopy = document.getElementById("interlude-copy");
-  const interludeTitle = document.getElementById("interlude-title");
-  const interludeKicker = document.getElementById("interlude-kicker");
-  const interludeProgressBar = document.querySelector("#interlude-progress > i");
-  const scrollCue = document.getElementById("scroll-cue");
-
 
   // ============================================================
   // AMBIENT AUDIO
@@ -185,155 +177,6 @@
     );
   };
 
-
-
-  // ============================================================
-  // CINEMATIC TESSELLA FIELD
-  // ============================================================
-
-  const fieldCtx = tesseraField?.getContext("2d");
-  let fieldW = 0;
-  let fieldH = 0;
-  let fieldDpr = 1;
-  let cinematicProgress = 0;
-  let pointerX = 0;
-  let pointerY = 0;
-
-  const fieldPalette = [
-    "#31d7ff",
-    "#2367ff",
-    "#714dff",
-    "#00a8ff",
-    "#d0a43c",
-    "#89e7ff"
-  ];
-
-  const fieldTesserae = Array.from({ length: 150 }, (_, i) => ({
-    angle: ((i * 2.399963229728653) + (i % 7) * .13) % (Math.PI * 2),
-    depth: ((i * 0.61803398875) % 1),
-    size: 5 + ((i * 17) % 9),
-    spin: ((i % 11) - 5) * .08,
-    drift: (((i * 13) % 17) - 8) * .003,
-    color: fieldPalette[i % fieldPalette.length]
-  }));
-
-  function resizeField() {
-    if (!tesseraField || !fieldCtx) return;
-    fieldDpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    fieldW = innerWidth;
-    fieldH = innerHeight;
-    tesseraField.width = Math.round(fieldW * fieldDpr);
-    tesseraField.height = Math.round(fieldH * fieldDpr);
-    tesseraField.style.width = fieldW + "px";
-    tesseraField.style.height = fieldH + "px";
-    fieldCtx.setTransform(fieldDpr, 0, 0, fieldDpr, 0, 0);
-  }
-
-  window.addEventListener("pointermove", event => {
-    pointerX = (event.clientX / innerWidth - .5) * 2;
-    pointerY = (event.clientY / innerHeight - .5) * 2;
-  }, { passive: true });
-
-  function drawTesseraField(time) {
-    if (!fieldCtx || !tesseraField) return;
-
-    fieldCtx.clearRect(0, 0, fieldW, fieldH);
-
-    const active = cinematicProgress > .12 && cinematicProgress < .58;
-    if (active) {
-      const local = clamp((cinematicProgress - .12) / .46);
-      const cx = fieldW * .5 + pointerX * 34;
-      const cy = fieldH * .5 + pointerY * 24;
-      const maxRadius = Math.hypot(fieldW, fieldH) * .72;
-
-      for (let i = 0; i < fieldTesserae.length; i++) {
-        const t = fieldTesserae[i];
-        let z = (t.depth - local * 1.55 - time * .012 + 2) % 1;
-        const travel = 1 - z;
-        const eased = travel * travel;
-        const radius = 24 + eased * maxRadius;
-        const a = t.angle + t.drift * time + pointerX * .04;
-        const x = cx + Math.cos(a) * radius;
-        const y = cy + Math.sin(a) * radius * .72;
-        const size = t.size * (.35 + travel * 1.75);
-        const alpha = Math.min(1, travel * 1.8) * (1 - smooth(.9, 1, travel));
-
-        fieldCtx.save();
-        fieldCtx.translate(x, y);
-        fieldCtx.rotate(a + time * t.spin * .05);
-        fieldCtx.globalAlpha = alpha * .95;
-        fieldCtx.shadowColor = t.color;
-        fieldCtx.shadowBlur = 10 + travel * 16;
-        fieldCtx.fillStyle = t.color;
-        const r = Math.max(1.5, size * .16);
-        fieldCtx.beginPath();
-        fieldCtx.roundRect(-size/2, -size/2, size, size, r);
-        fieldCtx.fill();
-        fieldCtx.globalAlpha = alpha * .35;
-        fieldCtx.strokeStyle = "rgba(255,255,255,.85)";
-        fieldCtx.lineWidth = .75;
-        fieldCtx.stroke();
-        fieldCtx.restore();
-      }
-    }
-
-    requestAnimationFrame(ts => drawTesseraField(ts * .001));
-  }
-
-  resizeField();
-  window.addEventListener("resize", resizeField, { passive: true });
-  requestAnimationFrame(ts => drawTesseraField(ts * .001));
-
-  function updateCinematicInterlude(progress) {
-    cinematicProgress = progress;
-
-    const start = .12;
-    const end = .56;
-    const local = clamp((progress - start) / (end - start));
-    const visibility = smooth(0, .07, local) * (1 - smooth(.90, 1, local));
-
-    if (interlude) {
-      interlude.classList.toggle("is-visible", visibility > .001);
-      interlude.style.opacity = String(visibility);
-    }
-    if (tesseraField) {
-      tesseraField.style.opacity = String(visibility);
-    }
-    if (scrollCue) {
-      scrollCue.style.opacity = String(1 - smooth(.015, .055, progress));
-    }
-    if (interludeProgressBar) {
-      interludeProgressBar.style.transform = `scaleX(${local})`;
-    }
-
-    const states = [
-      [0.00, 0.18, "One piece", "A mosaic begins with a single tessera"],
-      [0.18, 0.38, "Becomes a pattern", "Repetition gives matter a rhythm"],
-      [0.38, 0.58, "Pattern becomes memory", "Images preserve places, beliefs and power"],
-      [0.58, 0.78, "Memory travels", "Techniques move across cities and cultures"],
-      [0.78, 1.01, "Across time. Across worlds.", "Follow the itinerary of mosaic"],
-    ];
-
-    let state = states[0];
-    for (const candidate of states) {
-      if (local >= candidate[0] && local < candidate[1]) {
-        state = candidate;
-        break;
-      }
-    }
-
-    if (interludeTitle) interludeTitle.textContent = state[2];
-    if (interludeKicker) interludeKicker.textContent = state[3];
-
-    if (interludeCopy) {
-      const span = state[1] - state[0];
-      const stateLocal = clamp((local - state[0]) / span);
-      const fade = smooth(.02, .20, stateLocal) * (1 - smooth(.80, .98, stateLocal));
-      interludeCopy.style.opacity = String(fade);
-      interludeCopy.style.transform = `translateY(${(1 - fade) * 16}px) scale(${.985 + fade * .015})`;
-      interludeCopy.style.filter = `blur(${(1 - fade) * 7}px)`;
-    }
-  }
 
   // ============================================================
   // SETTINGS
@@ -2661,39 +2504,72 @@
   // TEXT
   // ============================================================
 
-  function updateText(progress) {
-    updateCinematicInterlude(progress);
+  function updateText(
+  progress
+) {
 
-    if (enterAtlas) {
-      enterAtlas.classList.toggle(
-        "visible",
-        progress > 0.91
-      );
-    }
-
-    if (progress < 0.10) {
-      title.textContent =
-        "Every story begins with a single piece";
-      desc.textContent =
-        "Scroll down to transform it";
-      copy.style.opacity = String(
-        1 - smooth(0.055, 0.095, progress)
-      );
-      return;
-    }
-
-    if (progress < 0.58) {
-      copy.style.opacity = "0";
-      return;
-    }
-
-    title.textContent =
-      "to become a world of colour";
-    desc.textContent = "";
-    copy.style.opacity = String(
-      smooth(0.62, 0.72, progress)
+  /*
+    Показываем кнопку перехода к глобусу
+    только ближе к концу scroll-сцены.
+  */
+  if (enterAtlas) {
+    enterAtlas.classList.toggle(
+      "visible",
+      progress > 0.88
     );
   }
+
+
+  /*
+    Первый экран
+  */
+  if (
+    progress <
+    0.12
+  ) {
+
+    title.textContent =
+      "Every story begins with a single piece";
+
+    desc.textContent =
+      "Scroll down to continue";
+
+    copy.style.opacity =
+      String(
+        1 -
+        smooth(
+          0.08,
+          0.12,
+          progress
+        )
+      );
+
+    return;
+  }
+
+
+  /*
+    Второй экран:
+    появляется во время сборки мозаики
+    и остаётся до конца сцены.
+  */
+
+  title.textContent =
+    "to become a world of colour";
+
+  desc.textContent =
+    "";
+
+  copy.style.opacity =
+    String(
+      smooth(
+        0.14,
+        0.21,
+        progress
+      )
+    );
+}
+
 
   // ============================================================
   // RENDER
@@ -2799,13 +2675,8 @@
     );
 
 
-    const assemblyProgress =
-      clamp(
-        (progress - 0.54) / 0.46
-      );
-
     drawAssembly(
-      assemblyProgress,
+      progress,
       rect
     );
 
@@ -2820,7 +2691,7 @@
         window.scrollY /
         (
           window.innerHeight *
-          2.3
+          1.25
         )
       );
 
@@ -2831,9 +2702,11 @@
     */
 
     const pixelHandoff =
-      progress > 0.54
-        ? smooth(0.00, 0.08, assemblyProgress)
-        : 0;
+      smooth(
+        0.78,
+        0.98,
+        flightProgress
+      );
 
 
     if (

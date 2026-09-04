@@ -500,64 +500,234 @@ function updateScrollEffect() {
       window.scrollY /
       (
         window.innerHeight *
-        2.35
+        1.25
       )
     );
 
-  /*
-    Phase 1: hold the tessera in front of the viewer.
-    Phase 2: let it swell until blue glass fills the viewport.
-    Phase 3: dissolve it into black before the typographic interlude.
-  */
-  const expand = smoothstep(
-    0.08,
-    0.74,
-    flightProgress
-  );
 
-  const dissolve = smoothstep(
-    0.76,
-    0.96,
-    flightProgress
-  );
-
-  if (
-    flightProgress > 0 &&
-    !transitionStarted
-  ) {
-    transitionStarted = true;
-    transitionRotation.x = tesseraGroup.rotation.x;
-    transitionRotation.y = tesseraGroup.rotation.y;
-    transitionRotation.z = tesseraGroup.rotation.z;
-  }
-
-  if (flightProgress === 0) {
-    transitionStarted = false;
-  }
-
-  const cinematicScale =
-    mix(
-      getHeroScale(),
-      window.innerWidth < 700 ? 2.8 : 2.35,
-      expand
+  const flight =
+    smoothstep(
+      0,
+      1,
+      flightProgress
     );
 
-  tesseraGroup.scale.setScalar(cinematicScale);
 
-  /* a restrained push toward the camera makes the expansion feel physical */
-  tesseraGroup.position.z = mix(0, 1.15, expand);
-  tesseraGroup.position.x = mix(0, -0.10, expand);
-  flightBaseY = mix(0, 0.03, expand);
+  if (
+    flightProgress >
+    0 &&
+    !transitionStarted
+  ) {
+    transitionStarted =
+      true;
 
-  /* turn the tessera toward the viewer while it fills the frame */
-  tesseraGroup.rotation.x = mix(transitionRotation.x, 0.02, expand);
-  tesseraGroup.rotation.y = mix(transitionRotation.y, 0.0, expand);
-  tesseraGroup.rotation.z = mix(transitionRotation.z, -0.035, expand);
+    transitionRotation.x =
+      tesseraGroup.rotation.x;
 
-  const opacity = 1 - dissolve;
-  canvas.style.opacity = String(opacity);
-  canvas.classList.toggle("is-hidden", opacity < 0.025);
+    transitionRotation.y =
+      tesseraGroup.rotation.y;
+
+    transitionRotation.z =
+      tesseraGroup.rotation.z;
+  }
+
+
+  if (
+    flightProgress ===
+    0
+  ) {
+    transitionStarted =
+      false;
+  }
+
+
+  const target =
+    window.__mosaicHeroTarget || {
+      x:
+        window.innerWidth /
+        2,
+
+      y:
+        window.innerHeight /
+        2,
+
+      size:
+        12
+    };
+
+
+  /*
+    В конце тессера оказывается немного
+    дальше камеры и становится размером
+    с выбранный пиксель мозаики.
+  */
+
+  const targetZ =
+    -0.8;
+
+
+  const currentZ =
+    mix(
+      0,
+      targetZ,
+      flight
+    );
+
+
+  const cameraDistance =
+    camera.position.z -
+    currentZ;
+
+
+  const visibleHeight =
+    2 *
+    Math.tan(
+      THREE.MathUtils.degToRad(
+        camera.fov /
+        2
+      )
+    ) *
+    cameraDistance;
+
+
+  const visibleWidth =
+    visibleHeight *
+    camera.aspect;
+
+
+  const targetWorldX =
+    (
+      target.x /
+      window.innerWidth -
+      0.5
+    ) *
+    visibleWidth;
+
+
+  const targetWorldY =
+    camera.position.y +
+    (
+      0.5 -
+      target.y /
+      window.innerHeight
+    ) *
+    visibleHeight;
+
+
+  /*
+    Лёгкая дуга делает движение похожим
+    на полёт, а не на обычное уменьшение.
+    В конечной точке дуга равна нулю.
+  */
+
+  const arc =
+    Math.sin(
+      Math.PI *
+      flight
+    );
+
+
+  tesseraGroup.position.x =
+    mix(
+      0,
+      targetWorldX,
+      flight
+    ) +
+    arc *
+    0.10;
+
+
+  flightBaseY =
+    mix(
+      0,
+      targetWorldY,
+      flight
+    ) +
+    arc *
+    0.16;
+
+
+  tesseraGroup.position.z =
+    currentZ;
+
+
+  const targetScale =
+    Math.max(
+      0.002,
+      target.size *
+      visibleWidth /
+      (
+        window.innerWidth *
+        2.6
+      )
+    );
+
+
+  tesseraGroup.scale.setScalar(
+    mix(
+      getHeroScale(),
+      targetScale,
+      flight
+    )
+  );
+
+
+  /*
+    Камень постепенно поворачивается
+    лицевой стороной к экрану.
+  */
+
+  tesseraGroup.rotation.x =
+    mix(
+      transitionRotation.x,
+      0,
+      flight
+    );
+
+
+  tesseraGroup.rotation.y =
+    mix(
+      transitionRotation.y,
+      0,
+      flight
+    );
+
+
+  tesseraGroup.rotation.z =
+    mix(
+      transitionRotation.z,
+      0,
+      flight
+    );
+
+
+  /*
+    Fade начинается только после того,
+    как камень почти достиг пикселя.
+  */
+
+  const opacity =
+    1 -
+    smoothstep(
+      0.78,
+      0.98,
+      flightProgress
+    );
+
+
+  canvas.style.opacity =
+    String(
+      opacity
+    );
+
+
+  canvas.classList.toggle(
+    "is-hidden",
+    opacity <
+    0.03
+  );
 }
+
 
 window.addEventListener(
   "scroll",
@@ -639,7 +809,7 @@ function animate() {
         0.0001
     ) {
       tesseraGroup.rotation.y +=
-        0.00042;
+        0.0013;
     }
   }
 
@@ -652,9 +822,9 @@ function animate() {
     flightBaseY +
     Math.sin(
       time *
-      0.46
+      0.8
     ) *
-    0.045 *
+    0.08 *
     (
       1 -
       flightProgress
