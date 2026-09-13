@@ -168,7 +168,7 @@ tesseraGroup.add(tessera);
 
 
 /* ============================================================
-   REAL 3D FLYING TESSELLAE
+   REAL 3D FLYING TESSELLAE — SAME VORTEX MOTION
    ============================================================ */
 
 const swarmGroup =
@@ -176,32 +176,44 @@ const swarmGroup =
 
 scene.add(swarmGroup);
 
+
+/* маленькая настоящая 3D tessera */
 const swarmGeometry =
   new RoundedBoxGeometry(
-    0.16,
-    0.16,
-    0.06,
-    4,
-    0.018
+    0.115,
+    0.115,
+    0.045,
+    2,
+    0.012
   );
 
+
+/*
+  Нам НЕ нужен MeshPhysicalMaterial здесь.
+  Он слишком тяжёлый для десятков движущихся объектов.
+
+  MeshStandardMaterial всё ещё даёт настоящий свет,
+  объём и тени, но работает значительно быстрее.
+*/
 const swarmMaterial =
-  new THREE.MeshPhysicalMaterial({
+  new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.30,
-    metalness: 0.08,
-    clearcoat: 0.32,
-    clearcoatRoughness: 0.36,
-    envMapIntensity: 1.05,
+    roughness: 0.48,
+    metalness: 0.06,
     transparent: true,
-    opacity: 1,
-    depthWrite: true
+    opacity: 1
   });
 
+
+/*
+  Меньше объектов.
+  Но каждый настоящий 3D.
+*/
 const SWARM_COUNT =
   window.innerWidth < 700
-    ? 54
-    : 88;
+    ? 42
+    : 64;
+
 
 const swarm =
   new THREE.InstancedMesh(
@@ -220,115 +232,155 @@ swarmGroup.add(swarm);
 
 
 /* ============================================================
-   COLORS
+   MOSAIC COLOURS
    ============================================================ */
 
 const palette = [
-  "#163aaf",
-  "#2f63de",
-  "#4ea3d9",
-  "#238269",
-  "#7fbf9a",
-  "#cf9c2f",
-  "#efd86f",
-  "#cf6b2f",
-  "#f0e7cf",
-  "#8b86a8"
+  "#1b4fd8",
+  "#3f7cff",
+  "#22a2d8",
+
+  "#1f8d6a",
+  "#65b46e",
+
+  "#d5a52d",
+  "#f1d85c",
+
+  "#d96f2f",
+
+  "#efe4c6",
+  "#a38c72",
+
+  "#8c6fb0"
 ];
 
 
 const seed = (n) => {
+
   const x =
-    Math.sin(n * 12.9898 + 78.233) *
+    Math.sin(
+      n * 12.9898 +
+      78.233
+    ) *
     43758.5453123;
 
-  return x - Math.floor(x);
+  return (
+    x -
+    Math.floor(x)
+  );
 };
 
 
+/*
+  Это важная часть.
+
+  Структура практически повторяет твои старые 2D tesserae:
+
+  angle
+  depth
+  spin
+  drift
+
+  Поэтому движение снова будет выглядеть как старый водоворот.
+*/
 const swarmData =
   Array.from(
-    { length: SWARM_COUNT },
-    (_, i) => {
+    {
+      length:
+        SWARM_COUNT
+    },
 
-      const r1 = seed(i + 1);
-      const r2 = seed(i + 17);
-      const r3 = seed(i + 43);
-      const r4 = seed(i + 91);
-      const r5 = seed(i + 137);
-      const r6 = seed(i + 211);
+    (_, i) => ({
 
-      const angle =
-        i * 2.399963229728653 +
-        (r1 - 0.5) * 0.42;
+      angle:
+        (
+          (
+            i *
+            2.399963229728653
+          ) +
+          (
+            i % 7
+          ) *
+          0.13
+        ) %
+        (
+          Math.PI *
+          2
+        ),
 
-      return {
-        angle,
+      depth:
+        (
+          i *
+          0.61803398875
+        ) %
+        1,
 
-        radius:
-          1.8 +
-          r2 * 3.2,
+      scale:
+        0.72 +
+        seed(
+          i + 31
+        ) *
+        0.46,
 
-        depth:
-          r3,
+      spin:
+        (
+          (
+            i % 11
+          ) -
+          5
+        ) *
+        0.42,
 
-        scale:
-          0.40 +
-          r4 * 0.44,
+      drift:
+        (
+          (
+            (
+              i * 13
+            ) %
+            17
+          ) -
+          8
+        ) *
+        0.018,
 
-        stretchX:
-          0.92 +
-          r5 * 0.18,
+      tiltX:
+        (
+          seed(
+            i + 71
+          ) -
+          0.5
+        ) *
+        1.1,
 
-        stretchY:
-          0.92 +
-          r6 * 0.18,
-
-        rotX:
-          r1 * Math.PI,
-
-        rotY:
-          r2 * Math.PI,
-
-        rotZ:
-          r3 * Math.PI,
-
-        spinX:
-          (r4 - 0.5) * 1.35,
-
-        spinY:
-          (r5 - 0.5) * 1.55,
-
-        spinZ:
-          (r6 - 0.5) * 1.10,
-
-        drift:
-          (r2 - 0.5) * 0.34
-      };
-    }
+      tiltY:
+        (
+          seed(
+            i + 97
+          ) -
+          0.5
+        ) *
+        1.1
+    })
   );
 
 
+/*
+  Не random-выбор с шансом.
+  Цвета идут по кругу — поэтому ВСЕ оттенки гарантированно появляются.
+*/
 for (
   let i = 0;
   i < SWARM_COUNT;
   i++
 ) {
+
   const color =
     new THREE.Color(
       palette[
-        Math.floor(
-          seed(i + 509) *
-          palette.length
-        )
+        i %
+        palette.length
       ]
     );
-
-  color.offsetHSL(
-    0,
-    (seed(i + 301) - 0.5) * 0.08,
-    (seed(i + 401) - 0.5) * 0.10
-  );
 
   swarm.setColorAt(
     i,
@@ -336,13 +388,20 @@ for (
   );
 }
 
-if (swarm.instanceColor) {
-  swarm.instanceColor.needsUpdate = true;
+
+if (
+  swarm.instanceColor
+) {
+
+  swarm.instanceColor
+    .needsUpdate =
+    true;
 }
 
 
 const dummy =
   new THREE.Object3D();
+
 
 let pointerNormX = 0;
 let pointerNormY = 0;
@@ -366,7 +425,9 @@ keyLight.position.set(
   4
 );
 
-scene.add(keyLight);
+scene.add(
+  keyLight
+);
 
 
 const rimLight =
@@ -383,7 +444,9 @@ rimLight.position.set(
   2
 );
 
-scene.add(rimLight);
+scene.add(
+  rimLight
+);
 
 
 const goldLight =
@@ -396,20 +459,29 @@ const goldLight =
 
 goldLight.position.set(
   2.5,
-  -3.0,
+  -3,
   1.5
 );
 
-scene.add(goldLight);
+scene.add(
+  goldLight
+);
 
 
+/*
+  Усилила ambient.
+  Поэтому жёлтые / зелёные / оранжевые tesserae
+  не превращаются визуально в синие.
+*/
 const fillLight =
   new THREE.AmbientLight(
-    "#b7ddff",
-    0.5
+    "#ffffff",
+    1.15
   );
 
-scene.add(fillLight);
+scene.add(
+  fillLight
+);
 
 
 /* ============================================================
@@ -435,7 +507,9 @@ let previousY = 0;
 let velocityX = 0;
 let velocityY = 0;
 
-let activeDragMode = "hero";
+let activeDragMode =
+  "hero";
+
 
 let swarmOrbitX = 0;
 let swarmOrbitY = 0;
@@ -446,13 +520,16 @@ let swarmVelocityY = 0;
 
 canvas.addEventListener(
   "pointerdown",
-  (event) => {
+  event => {
 
     const canDragHero =
-      tessera.visible;
+      tessera.visible &&
+      glassMaterial.opacity >
+      0.18;
 
     const canDragSwarm =
       swarmGroup.visible;
+
 
     if (
       !canDragHero &&
@@ -461,10 +538,12 @@ canvas.addEventListener(
       return;
     }
 
+
     activeDragMode =
       canDragHero
         ? "hero"
         : "swarm";
+
 
     dragging = true;
 
@@ -474,13 +553,16 @@ canvas.addEventListener(
     previousY =
       event.clientY;
 
+
     canvas.classList.add(
       "is-dragging"
     );
 
+
     hint?.classList.add(
       "is-hidden"
     );
+
 
     canvas.setPointerCapture(
       event.pointerId
@@ -491,31 +573,43 @@ canvas.addEventListener(
 
 canvas.addEventListener(
   "pointermove",
-  (event) => {
+  event => {
 
     pointerNormX =
-      event.clientX /
-      window.innerWidth *
+      (
+        event.clientX /
+        window.innerWidth
+      ) *
       2 -
       1;
 
+
     pointerNormY =
       -(
-        event.clientY /
-        window.innerHeight
-      ) *
-      2 +
-      1;
+        (
+          event.clientY /
+          window.innerHeight
+        ) *
+        2 -
+        1
+      );
+
 
     keyLight.position.x =
-      pointerNormX * 4;
+      pointerNormX *
+      4;
 
     keyLight.position.y =
-      pointerNormY * 3;
+      pointerNormY *
+      3;
 
-    if (!dragging) {
+
+    if (
+      !dragging
+    ) {
       return;
     }
+
 
     const deltaX =
       event.clientX -
@@ -532,10 +626,13 @@ canvas.addEventListener(
     ) {
 
       velocityY =
-        deltaX * 0.006;
+        deltaX *
+        0.006;
 
       velocityX =
-        deltaY * 0.006;
+        deltaY *
+        0.006;
+
 
       tesseraGroup.rotation.y +=
         velocityY;
@@ -545,11 +642,19 @@ canvas.addEventListener(
 
     } else {
 
+      /*
+        Когда летит водоворот,
+        мышкой вращается вся 3D-система.
+      */
+
       swarmVelocityY =
-        deltaX * 0.0038;
+        deltaX *
+        0.0038;
 
       swarmVelocityX =
-        deltaY * 0.0038;
+        deltaY *
+        0.0038;
+
 
       swarmOrbitY +=
         swarmVelocityY;
@@ -557,6 +662,7 @@ canvas.addEventListener(
       swarmOrbitX +=
         swarmVelocityX;
     }
+
 
     previousX =
       event.clientX;
@@ -570,17 +676,21 @@ canvas.addEventListener(
 function stopDragging(
   event
 ) {
+
   dragging = false;
+
 
   canvas.classList.remove(
     "is-dragging"
   );
+
 
   if (
     canvas.hasPointerCapture(
       event.pointerId
     )
   ) {
+
     canvas.releasePointerCapture(
       event.pointerId
     );
@@ -607,7 +717,8 @@ let flightProgress = 0;
 
 let flightBaseY = 0;
 
-let transitionStarted = false;
+let transitionStarted =
+  false;
 
 
 const transitionRotation = {
@@ -646,6 +757,7 @@ const smoothstep =
           start
         )
       );
+
 
     return (
       t *
@@ -710,7 +822,8 @@ function updateScrollEffect() {
     !transitionStarted
   ) {
 
-    transitionStarted = true;
+    transitionStarted =
+      true;
 
     transitionRotation.x =
       tesseraGroup.rotation.x;
@@ -726,7 +839,9 @@ function updateScrollEffect() {
   if (
     flightProgress === 0
   ) {
-    transitionStarted = false;
+
+    transitionStarted =
+      false;
   }
 
 
@@ -782,7 +897,7 @@ function updateScrollEffect() {
   tesseraGroup.rotation.y =
     mix(
       transitionRotation.y,
-      0.0,
+      0,
       expand
     );
 
@@ -813,6 +928,10 @@ function updateScrollEffect() {
     "1";
 
 
+  /*
+    canvas НЕ отключаем,
+    потому что на нём теперь живёт и водоворот.
+  */
   canvas.classList.remove(
     "is-hidden"
   );
@@ -820,7 +939,7 @@ function updateScrollEffect() {
 
 
 /* ============================================================
-   3D FLYING SWARM
+   3D VORTEX
    ============================================================ */
 
 function updateSwarm(
@@ -835,11 +954,17 @@ function updateSwarm(
 
   const pageProgress =
     maxScroll > 0
-      ? window.scrollY /
+      ?
+        window.scrollY /
         maxScroll
-      : 0;
+      :
+        0;
 
 
+  /*
+    Та же зона страницы,
+    где раньше был старый 2D interlude.
+  */
   const local =
     clamp01(
       (
@@ -853,18 +978,25 @@ function updateSwarm(
     );
 
 
+  /*
+    ПОЯВЛЯЮТСЯ ПОЧТИ СРАЗУ.
+  */
   const visibleIn =
     smoothstep(
       0.00,
-      0.03,
+      0.018,
       local
     );
 
 
+  /*
+    Исчезают только ближе
+    к самому переходу в мозаику.
+  */
   const visibleOut =
     1 -
     smoothstep(
-      0.93,
+      0.90,
       1.00,
       local
     );
@@ -887,55 +1019,63 @@ function updateSwarm(
   }
 
 
-  const launch =
-    smoothstep(
-      0.00,
-      0.22,
-      local
-    );
-
-
   const handoff =
     smoothstep(
-      0.76,
-      1.00,
+      0.72,
+      0.99,
       local
     );
 
 
-  const mouseStrength =
+  /*
+    Это ровно та идея radialCollapse,
+    которая была в старом 2D.
+  */
+  const radialCollapse =
     1 -
     handoff *
-    0.76;
+    0.62;
 
 
+  /*
+    Пользовательское вращение
+    всей системы.
+  */
   swarmGroup.rotation.x =
     swarmOrbitX *
     0.9;
 
-
   swarmGroup.rotation.y =
     swarmOrbitY *
-    0.9 +
-    time *
-    0.05 *
+    0.9;
+
+
+  /*
+    Размер водоворота.
+  */
+  const maxRadius =
+    window.innerWidth < 700
+      ? 3.8
+      : 5.7;
+
+
+  const pointerOffsetX =
+    pointerNormX *
+    0.24 *
     (
       1 -
       handoff *
-      0.9
+      0.7
     );
 
 
-  swarmGroup.rotation.z =
-    Math.sin(
-      time *
-      0.45
-    ) *
-    0.03 *
+  const pointerOffsetY =
+    pointerNormY *
+    0.18 *
     (
       1 -
       handoff *
-      0.85
+      0.7
     );
 
 
@@ -945,107 +1085,127 @@ function updateSwarm(
     i++
   ) {
 
-    const d =
+    const t =
       swarmData[i];
 
 
-    const stagger =
-      d.depth *
-      0.20;
+    /*
+      ВАЖНО.
 
+      Вот это старая логика твоего водоворота:
 
-    const t =
-      smoothstep(
-        stagger,
-        0.58 +
-        stagger *
-        0.45,
-        launch
-      );
+      depth
+      - local movement
+      - time movement
 
+      Поэтому камни непрерывно летят
+      из глубины к зрителю.
+    */
 
-    const turn =
-      d.angle +
-      time *
-      d.drift *
+    let zCycle =
       (
-        1 -
-        handoff *
-        0.80
-      );
+        t.depth -
+        local *
+        1.30 -
+        time *
+        0.009 +
+        2
+      ) %
+      1;
 
 
+    if (
+      zCycle < 0
+    ) {
+
+      zCycle += 1;
+    }
+
+
+    const travel =
+      1 -
+      zCycle;
+
+
+    const eased =
+      travel *
+      travel;
+
+
+    /*
+      Старый радиус:
+      маленький в центре →
+      всё больше к краям.
+    */
     const radius =
-      mix(
-        0.04,
-        d.radius,
-        t
+      (
+        0.20 +
+        eased *
+        maxRadius
       ) *
+      radialCollapse;
+
+
+    /*
+      Старое вращение по спирали.
+    */
+    const a =
+      t.angle +
+
+      t.drift *
+      time *
       (
         1 -
         handoff *
-        0.38
-      );
+        0.72
+      ) +
+
+      pointerNormX *
+      0.04;
 
 
     const x =
-      Math.cos(
-        turn
-      ) *
+      Math.cos(a) *
       radius +
-      pointerNormX *
-      0.42 *
-      mouseStrength;
+      pointerOffsetX;
 
 
     const y =
-      Math.sin(
-        turn
-      ) *
+      Math.sin(a) *
       radius *
       0.72 +
-      pointerNormY *
-      0.28 *
-      mouseStrength;
+      pointerOffsetY;
 
 
-    const flyZ =
-      mix(
-        -4.6 -
-        d.depth *
-        1.8,
+    /*
+      Но теперь это настоящий Z,
+      а не иллюзия размера.
 
-        2.1 +
-        d.depth *
-        0.7,
-
-        t
-      );
-
-
+      Камень реально движется
+      из глубины пространства.
+    */
     const z =
       mix(
-        flyZ,
-
-        -0.7 -
-        d.depth *
-        1.3,
-
-        handoff
+        -6.2,
+        1.25,
+        travel
       );
 
 
+    /*
+      Они меньше старой версии.
+    */
     const size =
-      d.scale *
+      t.scale *
       (
-        0.16 +
-        t *
-        0.62
+        0.30 +
+        travel *
+        0.72
       ) *
       (
         1 -
         handoff *
-        0.18
+        0.34
       ) *
       visibility;
 
@@ -1057,51 +1217,31 @@ function updateSwarm(
     );
 
 
+    /*
+      КАЖДАЯ tessera вращается
+      по X/Y/Z независимо.
+    */
     dummy.rotation.set(
 
-      d.rotX +
+      t.tiltX +
       time *
-      d.spinX *
-      (
-        1 -
-        handoff *
-        0.88
-      ),
+      t.spin *
+      0.28,
 
-      d.rotY +
+      t.tiltY +
       time *
-      d.spinY *
-      (
-        1 -
-        handoff *
-        0.88
-      ),
+      t.spin *
+      0.36,
 
-      d.rotZ +
+      a +
       time *
-      d.spinZ *
-      (
-        1 -
-        handoff *
-        0.88
-      )
+      t.spin *
+      0.16
     );
 
 
-    dummy.scale.set(
-
-      size *
-      d.stretchX,
-
-      size *
-      d.stretchY,
-
-      size *
-      (
-        0.72 +
-        d.depth *
-        0.22
-      )
+    dummy.scale.setScalar(
+      size
     );
 
 
@@ -1124,7 +1264,7 @@ function updateSwarm(
     Math.min(
       1,
       visibility *
-      1.18
+      1.25
     );
 }
 
@@ -1150,6 +1290,7 @@ window.addEventListener(
       window.innerWidth /
       window.innerHeight;
 
+
     camera.updateProjectionMatrix();
 
 
@@ -1170,6 +1311,7 @@ window.addEventListener(
 
     updateScrollEffect();
   },
+
   {
     passive: true
   }
@@ -1208,6 +1350,9 @@ function animate() {
       0.95;
 
 
+    /*
+      Инерция вращения водоворота.
+    */
     swarmOrbitX +=
       swarmVelocityX;
 
@@ -1233,6 +1378,7 @@ function animate() {
       ) <
       0.0001
     ) {
+
       tesseraGroup.rotation.y +=
         0.00042;
     }
@@ -1241,11 +1387,14 @@ function animate() {
 
   tesseraGroup.position.y =
     flightBaseY +
+
     Math.sin(
       time *
       0.46
     ) *
+
     0.045 *
+
     (
       1 -
       flightProgress
