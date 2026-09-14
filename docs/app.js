@@ -220,8 +220,36 @@
     // neighbours the longer the page has been open.
     curlVariance: (((i * 13) % 17) - 8) * .05,
     wobblePhase: (i * 1.6180339887) % (Math.PI * 2),
-    color: fieldPalette[i % fieldPalette.length]
+    color: fieldPalette[i % fieldPalette.length],
+
+    // Landing state: where this tile settles into the real mosaic grid
+    // at the end of its flight, so the swirl blends into the picture
+    // instead of just fading to nothing. targetCell is assigned once the
+    // real mosaic grid exists (see assignFieldLandingCells). landStarted
+    // and the landFrom* snapshot let the tile ease from wherever it
+    // organically was, rather than teleporting or re-basing every frame.
+    targetCell: null,
+    landStarted: false,
+    landFromX: 0,
+    landFromY: 0,
+    landFromSize: 0,
+    landFromRotation: 0
   }));
+
+  // Spread the 150 flying tiles evenly across the real mosaic grid so
+  // their landing spots cover the whole picture rather than clustering.
+  // Safe to call more than once (e.g. on resize/rebuild) since it just
+  // reassigns the same stable mapping.
+  function assignFieldLandingCells() {
+    if (!cells.length) return;
+
+    for (let i = 0; i < fieldTesserae.length; i++) {
+      const cellIndex =
+        Math.floor((i / fieldTesserae.length) * cells.length);
+
+      fieldTesserae[i].targetCell = cells[cellIndex];
+    }
+  }
 
   // Use only real colours from 04_mosaic_ultra.json for the flying tesserae.
   // We balance hue families so gold / blue / green / cyan / warm / violet
@@ -371,6 +399,14 @@
       */
       const BASE_CURL = 2.0;
 
+      // Real mosaic-cell rect, used to land tiles in their correct spot.
+      // Cheap to compute and only meaningful once the grid actually exists.
+      const canLand =
+        !!DATA && gridCols > 0 && gridRows > 0;
+
+      const fieldRect =
+        canLand ? getRect() : null;
+
       for (let i = 0; i < fieldTesserae.length; i++) {
         const t = fieldTesserae[i];
         let z = (t.depth - local * 1.05 - time * .006 + 2) % 1;
@@ -386,14 +422,64 @@
         const wobble = Math.sin(time * .55 + t.wobblePhase) * wobbleAmplitude;
 
         const a = t.angle + curl * eased + wobble + pointerX * .04;
-        const x = cx + Math.cos(a) * radius;
-        const y = cy + Math.sin(a) * radius * .72;
+        let x = cx + Math.cos(a) * radius;
+        let y = cy + Math.sin(a) * radius * .72;
 
         const baseSize = t.size * (.35 + travel * 1.75);
-        const size = baseSize * (1 - handoff * .48);
+        let size = baseSize * (1 - handoff * .48);
         const travelAlpha = Math.min(1, travel * 1.8) * (1 - smooth(.9, 1, travel));
-        const alpha = travelAlpha * (1 - smooth(.70, 1, local));
-        const rotation = (a + time * t.spin * .05) * (1 - handoff * .72);
+        let rotation = (a + time * t.spin * .05) * (1 - handoff * .72);
+
+        /*
+          LANDING BLEND
+          Across the last stretch of the vortex's life, ease each tile from
+          wherever it organically was toward its assigned real mosaic-cell
+          position, size, and (flat) orientation, instead of just letting
+          it shrink toward the screen centre and fade to nothing. The
+          landFrom* snapshot is captured once, the moment this tile first
+          enters the landing window, so it eases from a stable starting
+          point rather than chasing a target that keeps recalculating.
+        */
+        const land = smooth(.74, .99, local);
+
+        if (land > 0 && fieldRect && t.targetCell) {
+          if (!t.landStarted) {
+            t.landStarted = true;
+            t.landFromX = x;
+            t.landFromY = y;
+            t.landFromSize = size;
+            t.landFromRotation = rotation;
+          }
+
+          const targetX =
+            fieldRect.x +
+            (t.targetCell.col + 0.5) * (fieldRect.w / gridCols);
+
+          const targetY =
+            fieldRect.y +
+            (t.targetCell.row + 0.5) * (fieldRect.h / gridRows);
+
+          const targetSize =
+            Math.min(fieldRect.w / gridCols, fieldRect.h / gridRows) *
+            CELL_FILL;
+
+          x = lerp(t.landFromX, targetX, land);
+          y = lerp(t.landFromY, targetY, land);
+          size = lerp(t.landFromSize, targetSize, land);
+          rotation = t.landFromRotation * (1 - land);
+        } else if (land <= 0) {
+          // Scrolled back out of the landing window: forget the snapshot
+          // so the next pass through eases from a fresh, current position.
+          t.landStarted = false;
+        }
+
+        // While landing, settle toward full, steady opacity (like a real
+        // tile that has arrived) instead of continuing to pulse through
+        // its old spawn/despawn cycle; only fade at the very end, once
+        // the real mosaic cell underneath should already be in place.
+        const settledAlpha = lerp(travelAlpha, 1, land);
+        const globalFade = 1 - smooth(.95, 1, local);
+        const alpha = settledAlpha * globalFade;
 
         // Keep drawing the ORIGINAL 2D version as a safety fallback.
         // Its canvas is hidden only while the 3D renderer confirms it is visible.
@@ -402,13 +488,13 @@
         fieldCtx.rotate(rotation);
         fieldCtx.globalAlpha = alpha * .95;
         fieldCtx.shadowColor = t.color;
-        fieldCtx.shadowBlur = (10 + travel * 16) * (1 - handoff * .82);
+        fieldCtx.shadowBlur = (10 + travel * 16) * (1 - handoff * .82) * (1 - land);
         fieldCtx.fillStyle = t.color;
         const r = Math.max(1.25, size * (.16 - handoff * .05));
         fieldCtx.beginPath();
         fieldCtx.roundRect(-size/2, -size/2, size, size, r);
         fieldCtx.fill();
-        fieldCtx.globalAlpha = alpha * .32;
+        fieldCtx.globalAlpha = alpha * .32 * (1 - land);
         fieldCtx.strokeStyle = "rgba(255,255,255,.82)";
         fieldCtx.lineWidth = .7;
         fieldCtx.stroke();
@@ -669,6 +755,8 @@
 
 
     buildPixelGridFromJson();
+
+    assignFieldLandingCells();
 
     buildBuckets();
 
