@@ -560,26 +560,90 @@
 
 
   // ============================================================
-  // LOAD
+  // LOAD (with progress reporting for the loading-stones animation)
   // ============================================================
 
-  async function loadData() {
+  function reportLoadingProgress(fraction) {
+    if (typeof window.__setLoadingProgress === "function") {
+      window.__setLoadingProgress(fraction);
+    }
+  }
 
-    const response =
-      await fetch(
-        "./04_mosaic_ultra.json"
-      );
+  async function fetchJsonWithProgress(url) {
+    const response = await fetch(url);
 
     if (!response.ok) {
-
       throw new Error(
         `JSON load failed: ${response.status}`
       );
     }
 
+    const totalHeader =
+      response.headers.get("content-length");
+
+    const total =
+      totalHeader ? parseInt(totalHeader, 10) : 0;
+
+    // If we can't stream the body or don't know its size, fall back to a
+    // single-shot load with a simulated progress ramp so the stones still
+    // animate instead of sitting idle, then finishing.
+    if (!response.body || !total) {
+      let fake = 0;
+
+      const fakeTimer = setInterval(() => {
+        fake = Math.min(0.92, fake + (0.92 - fake) * 0.06 + 0.004);
+        reportLoadingProgress(fake);
+      }, 120);
+
+      const data = await response.json();
+
+      clearInterval(fakeTimer);
+      reportLoadingProgress(1);
+
+      return data;
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      chunks.push(value);
+      received += value.length;
+
+      reportLoadingProgress(clamp(received / total));
+    }
+
+    const fullBuffer =
+      new Uint8Array(received);
+
+    let offset = 0;
+
+    for (const chunk of chunks) {
+      fullBuffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    const text =
+      new TextDecoder("utf-8").decode(fullBuffer);
+
+    reportLoadingProgress(1);
+
+    return JSON.parse(text);
+  }
+
+  async function loadData() {
 
     DATA =
-      await response.json();
+      await fetchJsonWithProgress(
+        "./04_mosaic_ultra.json"
+      );
 
 
     if (
@@ -613,8 +677,11 @@
 
     if (loading) {
 
-      loading.style.display =
-        "none";
+      // Give the last falling stone a moment to land before the loading
+      // screen fades out, instead of cutting it off mid-animation.
+      window.setTimeout(() => {
+        loading.classList.add("is-hidden");
+      }, 420);
     }
 
 
