@@ -297,9 +297,15 @@
 
     /* CINEMATIC INTERLUDE */
     #tessera-field {
-      /* Legacy 2D field retained in the DOM for compatibility.
-         The flying tesserae are now true 3D objects rendered by tessera-3d.js. */
-      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s linear;
     }
 
     #interlude {
@@ -472,10 +478,10 @@
 
   </div>
 
-  <script src="./app.js?v=15"></script>
+  <script src="./app.js?v=14"></script>
   <script
     type="module"
-    src="./tessera-3d.js?v=15"
+    src="./tessera-3d.js?v=14"
   ></script>
 </body>
 </html>

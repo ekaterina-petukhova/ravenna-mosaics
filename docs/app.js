@@ -191,8 +191,7 @@
   // CINEMATIC TESSELLA FIELD
   // ============================================================
 
-  // Legacy 2D flying-tessera canvas disabled: the field is now rendered as real 3D in tessera-3d.js.
-  const fieldCtx = null;
+  const fieldCtx = tesseraField?.getContext("2d");
   let fieldW = 0;
   let fieldH = 0;
   let fieldDpr = 1;
@@ -311,7 +310,7 @@
       interlude.style.opacity = String(visibility);
     }
     if (tesseraField) {
-      tesseraField.style.opacity = "0";
+      tesseraField.style.opacity = String(visibility);
     }
     if (scrollCue) {
       scrollCue.style.opacity = String(1 - smooth(.015, .055, progress));
