@@ -201,12 +201,12 @@
   let pointerY = 0;
 
   const fieldPalette = [
-    "#31d7ff",
-    "#2367ff",
-    "#714dff",
-    "#00a8ff",
-    "#d0a43c",
-    "#89e7ff"
+    "#ffb23c",
+    "#2ecbff",
+    "#7a5cff",
+    "#3fe08a",
+    "#ff5a6e",
+    "#4d7bff"
   ];
 
   const fieldTesserae = Array.from({ length: 150 }, (_, i) => ({
@@ -260,15 +260,16 @@
       const { r, g, b } = hexToRgb(hex);
       const { h, s, l } = rgbToHsl(r, g, b);
 
-      // Exclude pieces that will read as almost black/grey in motion.
-      if (l < .30 || l > .88 || s < .16) continue;
+      // Loosened slightly from the original threshold so more of the
+      // mosaic's real hue range is eligible for the flying field.
+      if (l < .22 || l > .92 || s < .10) continue;
 
-      if (h >= 35 && h < 72) families.gold.push(hex);
-      else if (h >= 195 && h < 250) families.blue.push(hex);
-      else if (h >= 75 && h < 165) families.green.push(hex);
-      else if (h >= 165 && h < 195) families.cyan.push(hex);
-      else if (h < 35 || h >= 335) families.warm.push(hex);
-      else if (h >= 250 && h < 335) families.violet.push(hex);
+      if (h >= 35 && h < 72) families.gold.push({ h, s, l });
+      else if (h >= 195 && h < 250) families.blue.push({ h, s, l });
+      else if (h >= 75 && h < 165) families.green.push({ h, s, l });
+      else if (h >= 165 && h < 195) families.cyan.push({ h, s, l });
+      else if (h < 35 || h >= 335) families.warm.push({ h, s, l });
+      else if (h >= 250 && h < 335) families.violet.push({ h, s, l });
     }
 
     const buckets = Object.values(families).filter(bucket => bucket.length);
@@ -280,10 +281,25 @@
       return x - Math.floor(x);
     };
 
+    /*
+      A colour sampled straight from the photograph reads as muted antique
+      glass in a still image, but at flying-tessera size, against black,
+      those muted tones flatten toward near-identical dark smudges. Keep
+      each tile's real hue (every family present in the mosaic is still
+      represented) but lift saturation and recentre lightness into a
+      vivid band, so the swirl reads as distinctly colourful in motion —
+      closer to how the physical glass looks when it actually catches light.
+    */
     for (let i = 0; i < fieldTesserae.length; i++) {
       const bucket = buckets[i % buckets.length];
       const idx = Math.floor(pick(i + 17) * bucket.length);
-      fieldTesserae[i].color = bucket[idx];
+      const { h, s, l } = bucket[idx];
+
+      const vividS = clamp(s * 1.6 + .15);
+      const vividL = lerp(.45, .68, clamp(l));
+
+      fieldTesserae[i].color =
+        `hsl(${Math.round(h)}, ${Math.round(vividS * 100)}%, ${Math.round(vividL * 100)}%)`;
     }
   }
 
