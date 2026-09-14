@@ -257,11 +257,9 @@ const vortexGeometry =
   );
 
 const vortexMaterial =
-  new THREE.MeshPhongMaterial({
+  new THREE.MeshBasicMaterial({
     color: 0xffffff,
     vertexColors: true,
-    shininess: 72,
-    specular: new THREE.Color("#dcecff"),
     transparent: true,
     opacity: 1
   });
@@ -329,41 +327,10 @@ vortexScene.add(vortex);
 const vortexDummy =
   new THREE.Object3D();
 
-const vortexLightA =
-  new THREE.DirectionalLight(
-    "#ffffff",
-    3.4
-  );
-
-vortexLightA.position.set(
-  180,
-  220,
-  400
-);
-
-vortexScene.add(vortexLightA);
-
-const vortexLightB =
-  new THREE.DirectionalLight(
-    "#f3f0df",
-    2.1
-  );
-
-vortexLightB.position.set(
-  -220,
-  -120,
-  260
-);
-
-vortexScene.add(vortexLightB);
-
-const vortexAmbient =
-  new THREE.AmbientLight(
-    "#ffffff",
-    2.25
-  );
-
-vortexScene.add(vortexAmbient);
+// The vortex material is unlit (MeshBasicMaterial), so it needs no
+// lights of its own — the old directional/ambient lights here used to
+// dominate and wash out the per-instance colour; removed rather than
+// left as dead, confusing code.
 
 let vortexFrameVisible = false;
 
@@ -450,9 +417,10 @@ window.__update3DTesseraField = ({
     const instanceColor =
       new THREE.Color(item.color || "#5f88d8");
 
-    // Slight lift only for rendering: hue still comes from the real JSON tessera.
-    // This prevents dark mosaic samples from reading as black in motion.
-    instanceColor.offsetHSL(0, 0.06, 0.10);
+    // app.js now sends already-vivid hsl() colours, so only a tiny polish
+    // lift is needed here — the old +0.10 lightness boost was compensating
+    // for muted raw photo hex values that no longer reach this function.
+    instanceColor.offsetHSL(0, 0.02, 0.02);
 
     vortex.setColorAt(
       i,
