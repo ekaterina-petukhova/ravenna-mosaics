@@ -196,7 +196,6 @@
   let fieldH = 0;
   let fieldDpr = 1;
   let cinematicProgress = 0;
-  let smoothedCinematicProgress = 0;
   let pointerX = 0;
   let pointerY = 0;
 
@@ -214,78 +213,9 @@
     depth: ((i * 0.61803398875) % 1),
     size: 5 + ((i * 17) % 9),
     spin: ((i % 11) - 5) * .08,
-    // Fixed per-tile spiral variance and wobble phase. These are constants,
-    // not runtime accumulators, so every tile's path is a precise, repeatable
-    // curve instead of a wander that keeps drifting further from its
-    // neighbours the longer the page has been open.
-    curlVariance: (((i * 13) % 17) - 8) * .05,
-    wobblePhase: (i * 1.6180339887) % (Math.PI * 2),
+    drift: (((i * 13) % 17) - 8) * .003,
     color: fieldPalette[i % fieldPalette.length]
   }));
-
-  // Use only real colours from 04_mosaic_ultra.json for the flying tesserae.
-  // We balance hue families so gold / blue / green / cyan / warm / violet
-  // are all represented, while still taking every hex from the JSON itself.
-  function assignFieldColorsFromJson() {
-    if (!DATA?.tesserae?.length) return;
-
-    const families = {
-      gold: [],
-      blue: [],
-      green: [],
-      cyan: [],
-      warm: [],
-      violet: []
-    };
-
-    const rgbToHsl = (r, g, b) => {
-      r /= 255; g /= 255; b /= 255;
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const l = (max + min) / 2;
-      const d = max - min;
-      if (d === 0) return { h: 0, s: 0, l };
-      const s = d / (1 - Math.abs(2 * l - 1));
-      let h;
-      if (max === r) h = 60 * (((g - b) / d) % 6);
-      else if (max === g) h = 60 * (((b - r) / d) + 2);
-      else h = 60 * (((r - g) / d) + 4);
-      if (h < 0) h += 360;
-      return { h, s, l };
-    };
-
-    for (const source of DATA.tesserae) {
-      const hex = source.median_hex || source.mean_hex;
-      if (!hex) continue;
-      const { r, g, b } = hexToRgb(hex);
-      const { h, s, l } = rgbToHsl(r, g, b);
-
-      // Exclude pieces that will read as almost black/grey in motion.
-      if (l < .30 || l > .88 || s < .16) continue;
-
-      if (h >= 35 && h < 72) families.gold.push(hex);
-      else if (h >= 195 && h < 250) families.blue.push(hex);
-      else if (h >= 75 && h < 165) families.green.push(hex);
-      else if (h >= 165 && h < 195) families.cyan.push(hex);
-      else if (h < 35 || h >= 335) families.warm.push(hex);
-      else if (h >= 250 && h < 335) families.violet.push(hex);
-    }
-
-    const buckets = Object.values(families).filter(bucket => bucket.length);
-    if (!buckets.length) return;
-
-    // Deterministic pseudo-random sampling: stable on every reload, but varied.
-    const pick = n => {
-      const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
-      return x - Math.floor(x);
-    };
-
-    for (let i = 0; i < fieldTesserae.length; i++) {
-      const bucket = buckets[i % buckets.length];
-      const idx = Math.floor(pick(i + 17) * bucket.length);
-      fieldTesserae[i].color = bucket[idx];
-    }
-  }
 
   function resizeField() {
     if (!tesseraField || !fieldCtx) return;
@@ -310,66 +240,29 @@
     fieldCtx.clearRect(0, 0, fieldW, fieldH);
 
     /*
-      Smooth the raw scroll-driven progress before it reaches the spiral
-      math. cinematicProgress only changes when the page's scroll handler
-      fires (an uneven, event-driven cadence), while this function runs on
-      every animation frame. Feeding that raw value straight into the
-      trajectory made the field jump exactly as far, and as abruptly, as
-      the last scroll tick — read as stutter on wheels/trackpads, and as a
-      sudden "too fast" burst on quick flicks. Lerping toward the target
-      every frame turns many small discrete jumps into one continuous,
-      predictable motion.
+      Keep the flying tesserae alive well into the mosaic handoff.
+      During the last third they decelerate, drift inward and lose
+      their neon bloom while the real mosaic cells begin to settle.
+      This creates one continuous material transition instead of a cut.
     */
-    smoothedCinematicProgress = lerp(
-      smoothedCinematicProgress,
-      cinematicProgress,
-      0.085
-    );
-
-    const VORTEX_START = .18;
-    const active =
-      smoothedCinematicProgress > VORTEX_START &&
-      smoothedCinematicProgress < .79;
-
-    let sent3DFrame = false;
-
+    const active = cinematicProgress > .12 && cinematicProgress < .79;
     if (active) {
-      const local = clamp((smoothedCinematicProgress - .12) / .67);
+      const local = clamp((cinematicProgress - .12) / .67);
       const handoff = smooth(.60, .98, local);
       const cx = fieldW * .5 + pointerX * (34 * (1 - handoff * .7));
       const cy = fieldH * .5 + pointerY * (24 * (1 - handoff * .7));
       const maxRadius = Math.hypot(fieldW, fieldH) * .72;
-      const frame3D = [];
-
-      /*
-        SPIRAL GEOMETRY
-        A tile now gains angle as it gains radius (curl * eased): the old
-        version moved tiles outward along a fixed ray, which reads as a
-        radial "warp speed" burst rather than a vortex. Curving the angle
-        with travel gives each tile an actual spiral path. curlVariance is
-        a fixed per-tile constant (not a runtime accumulator), and the
-        wobble is a small bounded oscillation rather than an ever-growing
-        drift, so the geometry stays precise and repeats identically on
-        every pass instead of slowly turning to noise the longer the page
-        has been open.
-      */
-      const BASE_CURL = 2.0;
 
       for (let i = 0; i < fieldTesserae.length; i++) {
         const t = fieldTesserae[i];
-        let z = (t.depth - local * 1.05 - time * .006 + 2) % 1;
+        let z = (t.depth - local * 1.30 - time * .009 + 2) % 1;
         const travel = 1 - z;
         const eased = travel * travel;
 
         /* pull the star-field gently back toward the image plane */
         const radialCollapse = 1 - handoff * .62;
         const radius = (24 + eased * maxRadius) * radialCollapse;
-
-        const curl = BASE_CURL + t.curlVariance;
-        const wobbleAmplitude = .045 * (1 - handoff * .72);
-        const wobble = Math.sin(time * .55 + t.wobblePhase) * wobbleAmplitude;
-
-        const a = t.angle + curl * eased + wobble + pointerX * .04;
+        const a = t.angle + t.drift * time * (1 - handoff * .72) + pointerX * .04;
         const x = cx + Math.cos(a) * radius;
         const y = cy + Math.sin(a) * radius * .72;
 
@@ -377,13 +270,10 @@
         const size = baseSize * (1 - handoff * .48);
         const travelAlpha = Math.min(1, travel * 1.8) * (1 - smooth(.9, 1, travel));
         const alpha = travelAlpha * (1 - smooth(.70, 1, local));
-        const rotation = (a + time * t.spin * .05) * (1 - handoff * .72);
 
-        // Keep drawing the ORIGINAL 2D version as a safety fallback.
-        // Its canvas is hidden only while the 3D renderer confirms it is visible.
         fieldCtx.save();
         fieldCtx.translate(x, y);
-        fieldCtx.rotate(rotation);
+        fieldCtx.rotate((a + time * t.spin * .05) * (1 - handoff * .72));
         fieldCtx.globalAlpha = alpha * .95;
         fieldCtx.shadowColor = t.color;
         fieldCtx.shadowBlur = (10 + travel * 16) * (1 - handoff * .82);
@@ -397,41 +287,7 @@
         fieldCtx.lineWidth = .7;
         fieldCtx.stroke();
         fieldCtx.restore();
-
-        frame3D.push({
-          x,
-          y,
-          size,
-          rotation,
-          alpha: alpha * .95,
-          color: t.color,
-          travel,
-          handoff
-        });
       }
-
-      if (typeof window.__update3DTesseraField === "function") {
-        window.__update3DTesseraField({
-          items: frame3D,
-          width: fieldW,
-          height: fieldH,
-          visibility: 1,
-          local,
-          time
-        });
-        sent3DFrame = true;
-      }
-    }
-
-    if (!sent3DFrame && typeof window.__update3DTesseraField === "function") {
-      window.__update3DTesseraField({
-        items: [],
-        width: fieldW,
-        height: fieldH,
-        visibility: 0,
-        local: 0,
-        time
-      });
     }
 
     requestAnimationFrame(ts => drawTesseraField(ts * .001));
@@ -454,12 +310,7 @@
       interlude.style.opacity = String(visibility);
     }
     if (tesseraField) {
-      // Never allow a blank gap: if the 3D layer is not actively rendering,
-      // the original 2D vortex remains visible as a fallback.
-      tesseraField.style.opacity =
-        window.__3DTesseraVortexVisible
-          ? "0"
-          : String(visibility);
+      tesseraField.style.opacity = String(visibility);
     }
     if (scrollCue) {
       scrollCue.style.opacity = String(1 - smooth(.015, .055, progress));
@@ -575,9 +426,6 @@
         "Invalid 04_mosaic_ultra.json structure"
       );
     }
-
-
-    assignFieldColorsFromJson();
 
 
     CACHE_HEIGHT =

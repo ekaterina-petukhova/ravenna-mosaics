@@ -208,9 +208,7 @@ const glassMaterial =
 
     attenuationDistance: 1.6,
 
-    envMapIntensity: 1.15,
-    transparent: true,
-    opacity: 1
+    envMapIntensity: 1.15
   });
 
 
@@ -221,287 +219,6 @@ const tessera =
   );
 
 tesseraGroup.add(tessera);
-
-
-/* ============================================================
-   3D VORTEX LAYER
-   Uses the exact screen-space transforms calculated by app.js.
-   ============================================================ */
-
-const vortexScene = new THREE.Scene();
-vortexScene.background = null;
-vortexScene.environment = environmentMap;
-
-let vortexCamera =
-  new THREE.OrthographicCamera(
-    -window.innerWidth / 2,
-    window.innerWidth / 2,
-    window.innerHeight / 2,
-    -window.innerHeight / 2,
-    0.1,
-    2000
-  );
-
-vortexCamera.position.set(0, 0, 500);
-vortexCamera.lookAt(0, 0, 0);
-
-const VORTEX_COUNT = 150;
-
-const vortexGeometry =
-  new RoundedBoxGeometry(
-    1,
-    1,
-    0.34,
-    3,
-    0.10
-  );
-
-const vortexMaterial =
-  new THREE.MeshPhongMaterial({
-    color: 0xffffff,
-    vertexColors: true,
-    shininess: 72,
-    specular: new THREE.Color("#dcecff"),
-    transparent: true,
-    opacity: 1
-  });
-
-/*
-  Per-instance alpha so the original 2D fade behaviour is preserved.
-*/
-const instanceAlpha =
-  new THREE.InstancedBufferAttribute(
-    new Float32Array(VORTEX_COUNT),
-    1
-  );
-
-vortexGeometry.setAttribute(
-  "instanceAlpha",
-  instanceAlpha
-);
-
-vortexMaterial.onBeforeCompile = (shader) => {
-  shader.vertexShader = shader.vertexShader
-    .replace(
-      "#include <common>",
-      `#include <common>
-attribute float instanceAlpha;
-varying float vInstanceAlpha;`
-    )
-    .replace(
-      "#include <color_vertex>",
-      `#include <color_vertex>
-vInstanceAlpha = instanceAlpha;`
-    );
-
-  shader.fragmentShader = shader.fragmentShader
-    .replace(
-      "#include <common>",
-      `#include <common>
-varying float vInstanceAlpha;`
-    )
-    .replace(
-      "#include <opaque_fragment>",
-      `#include <opaque_fragment>
-gl_FragColor.a *= vInstanceAlpha;`
-    );
-};
-
-vortexMaterial.customProgramCacheKey = () =>
-  "vortex-instance-alpha-v1";
-
-const vortex =
-  new THREE.InstancedMesh(
-    vortexGeometry,
-    vortexMaterial,
-    VORTEX_COUNT
-  );
-
-vortex.instanceMatrix.setUsage(
-  THREE.DynamicDrawUsage
-);
-
-vortex.frustumCulled = false;
-vortex.visible = false;
-
-vortexScene.add(vortex);
-
-const vortexDummy =
-  new THREE.Object3D();
-
-const vortexLightA =
-  new THREE.DirectionalLight(
-    "#ffffff",
-    3.4
-  );
-
-vortexLightA.position.set(
-  180,
-  220,
-  400
-);
-
-vortexScene.add(vortexLightA);
-
-const vortexLightB =
-  new THREE.DirectionalLight(
-    "#f3f0df",
-    2.1
-  );
-
-vortexLightB.position.set(
-  -220,
-  -120,
-  260
-);
-
-vortexScene.add(vortexLightB);
-
-const vortexAmbient =
-  new THREE.AmbientLight(
-    "#ffffff",
-    2.25
-  );
-
-vortexScene.add(vortexAmbient);
-
-let vortexFrameVisible = false;
-
-// app.js uses these flags so the old 2D vortex stays as a safety fallback
-// until this 3D renderer is actually ready and drawing.
-window.__3DTesseraVortexReady = true;
-window.__3DTesseraVortexVisible = false;
-
-window.__update3DTesseraField = ({
-  items,
-  width,
-  height,
-  visibility
-}) => {
-  vortexFrameVisible =
-    visibility > 0 &&
-    items.length > 0;
-
-  vortex.visible =
-    vortexFrameVisible;
-
-  window.__3DTesseraVortexVisible =
-    vortexFrameVisible;
-
-  if (!vortexFrameVisible) {
-    return;
-  }
-
-  const count =
-    Math.min(
-      items.length,
-      VORTEX_COUNT
-    );
-
-  for (
-    let i = 0;
-    i < count;
-    i++
-  ) {
-    const item = items[i];
-
-    /*
-      Exact old 2D coordinates:
-      x/y are simply recentered for an orthographic camera.
-      No spiral maths is recalculated here.
-    */
-    const x =
-      item.x -
-      width / 2;
-
-    const y =
-      height / 2 -
-      item.y;
-
-    vortexDummy.position.set(
-      x,
-      y,
-      item.travel * 30
-    );
-
-    /*
-      x/y rotation only reveals the thickness.
-      Z rotation is the exact old 2D rotation.
-    */
-    vortexDummy.rotation.set(
-      Math.sin(i * 1.713) * 0.34,
-      Math.cos(i * 1.297) * 0.34,
-      item.rotation
-    );
-
-    vortexDummy.scale.set(
-      item.size,
-      item.size,
-      item.size
-    );
-
-    vortexDummy.updateMatrix();
-
-    vortex.setMatrixAt(
-      i,
-      vortexDummy.matrix
-    );
-
-    const instanceColor =
-      new THREE.Color(item.color || "#5f88d8");
-
-    // Slight lift only for rendering: hue still comes from the real JSON tessera.
-    // This prevents dark mosaic samples from reading as black in motion.
-    instanceColor.offsetHSL(0, 0.06, 0.10);
-
-    vortex.setColorAt(
-      i,
-      instanceColor
-    );
-
-    instanceAlpha.setX(
-      i,
-      item.alpha
-    );
-  }
-
-  for (
-    let i = count;
-    i < VORTEX_COUNT;
-    i++
-  ) {
-    vortexDummy.position.set(
-      100000,
-      100000,
-      0
-    );
-
-    vortexDummy.scale.setScalar(
-      0.00001
-    );
-
-    vortexDummy.updateMatrix();
-
-    vortex.setMatrixAt(
-      i,
-      vortexDummy.matrix
-    );
-
-    instanceAlpha.setX(
-      i,
-      0
-    );
-  }
-
-  vortex.instanceMatrix.needsUpdate = true;
-
-  if (vortex.instanceColor) {
-    vortex.instanceColor.needsUpdate = true;
-  }
-
-  instanceAlpha.needsUpdate = true;
-};
-
 
 
 /*
@@ -838,20 +555,8 @@ function updateScrollEffect() {
   tesseraGroup.rotation.z = mix(transitionRotation.z, -0.035, expand);
 
   const opacity = 1 - dissolve;
-
-  /*
-    Fade ONLY the large hero tessera.
-    The canvas itself must stay visible because the 3D vortex
-    is rendered on the same WebGL canvas.
-  */
-  glassMaterial.opacity = opacity;
-  tessera.visible = opacity > 0.01;
-
-  canvas.style.opacity = "1";
-  canvas.classList.toggle(
-    "is-hidden",
-    opacity < 0.025 && !vortexFrameVisible
-  );
+  canvas.style.opacity = String(opacity);
+  canvas.classList.toggle("is-hidden", opacity < 0.025);
 }
 
 window.addEventListener(
@@ -888,20 +593,6 @@ window.addEventListener(
       window.innerHeight,
       false
     );
-
-    vortexCamera.left =
-      -window.innerWidth / 2;
-
-    vortexCamera.right =
-      window.innerWidth / 2;
-
-    vortexCamera.top =
-      window.innerHeight / 2;
-
-    vortexCamera.bottom =
-      -window.innerHeight / 2;
-
-    vortexCamera.updateProjectionMatrix();
 
 
     updateScrollEffect();
@@ -970,26 +661,10 @@ function animate() {
     );
 
 
-  renderer.autoClear = false;
-  renderer.clear();
-
   renderer.render(
     scene,
     camera
   );
-
-  /*
-    Old 2D field sat visually above the hero layer.
-    Keep the same stacking order for the 3D replacement.
-  */
-  renderer.clearDepth();
-
-  if (vortexFrameVisible) {
-    renderer.render(
-      vortexScene,
-      vortexCamera
-    );
-  }
 
 
   requestAnimationFrame(
