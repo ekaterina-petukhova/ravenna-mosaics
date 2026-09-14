@@ -1,33 +1,36 @@
-import * as THREE from "three";
+(() => {
+  "use strict";
 
-import { RoundedBoxGeometry } from
-  "three/addons/geometries/RoundedBoxGeometry.js";
+  /*
+    ============================================================
+    LOADING TESSERAE
+    The word "LOADING" is sampled into a grid of points the same way
+    app.js samples the real mosaic photo into a pixel grid — except the
+    "image" here is the word itself, rendered to an offscreen canvas.
+    Each sampled point becomes one small tessera that flies in from a
+    random nearby offset and settles into place, composing the word.
 
-/*
-  ============================================================
-  LOADING STONES
-  A small, self-contained 3D scene for the loading screen only.
-  Stones "unlock" and drop in sequence as window.__setLoadingProgress()
-  is called (app.js drives this from real fetch download progress).
+    Plain 2D canvas on purpose: after the WebGL lighting bugs on the
+    scroll vortex, this stays simple and impossible to wash out — a
+    tessera's colour is just its fillStyle, nothing lights it.
 
-  Deliberately kept simple and unlit-safe after the vortex lighting
-  bugs earlier in this project:
-    - MeshLambertMaterial (diffuse only, no specular highlight to blow out)
-    - modest light intensities
-    - NO tonemapping on the renderer (default NoToneMapping), so colours
-      can't desaturate toward white the way ACES did on the vortex.
-  ============================================================
-*/
+    window.__setLoadingProgress(fraction) is called by app.js with real
+    fetch download progress (0..1); tesserae unlock in sequence as that
+    number climbs.
+    ============================================================
+  */
 
-const canvas =
-  document.getElementById("loading-canvas");
+  const canvas =
+    document.getElementById("loading-canvas");
 
-const percentLabel =
-  document.getElementById("loading-percent");
+  if (!canvas) {
+    return;
+  }
 
-if (canvas) {
+  const ctx =
+    canvas.getContext("2d");
 
-  const STONE_COUNT = 9;
+  const WORD = "LOADING";
 
   const PALETTE = [
     "#ffb23c",
@@ -41,10 +44,9 @@ if (canvas) {
     "#c76bff"
   ];
 
-  const SPACING = 0.72;
-  const GROUND_Y = -0.4;
-  const DROP_HEIGHT = 2.4;
-  const FALL_DURATION = 620; // ms
+  const SAMPLE_STEP = 4;
+  const MAX_TESSERAE = 220;
+  const FLY_DURATION = 480; // ms
 
 
   /* ---- sizing: fixed internal resolution matched to the CSS box ---- */
@@ -56,94 +58,118 @@ if (canvas) {
     Math.min(window.devicePixelRatio || 1, 2);
 
   const cssWidth =
-    rect.width || 280;
+    Math.round(rect.width) || 360;
 
   const cssHeight =
-    rect.height || 116;
+    Math.round(rect.height) || 120;
 
   canvas.width =
-    Math.max(1, Math.round(cssWidth * dpr));
+    Math.round(cssWidth * dpr);
 
   canvas.height =
-    Math.max(1, Math.round(cssHeight * dpr));
+    Math.round(cssHeight * dpr);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 
-  /* ---- scene ---- */
+  /* ---- sample the word's letterforms into tessera points ---- */
 
-  const scene =
-    new THREE.Scene();
+  function buildWordPoints() {
 
-  scene.background =
-    null;
+    const off =
+      document.createElement("canvas");
 
-  const camera =
-    new THREE.PerspectiveCamera(
-      46,
-      cssWidth / cssHeight,
-      0.1,
-      50
-    );
+    off.width = cssWidth;
+    off.height = cssHeight;
 
-  camera.position.set(0, 1.6, 9);
-  camera.lookAt(0, -0.2, 0);
+    const octx =
+      off.getContext("2d");
 
-  const renderer =
-    new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true,
-      powerPreference: "low-power"
-    });
+    // Shrink the font until the word fits comfortably in the box.
+    let fontSize =
+      Math.floor(cssHeight * 0.6);
 
-  renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(dpr);
-  renderer.setSize(cssWidth, cssHeight, false);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+    let width = 0;
 
-  const ambient =
-    new THREE.AmbientLight("#ffffff", 0.6);
+    do {
+      octx.font = `900 ${fontSize}px Arial, sans-serif`;
+      width = octx.measureText(WORD).width;
 
-  scene.add(ambient);
+      if (width > off.width * 0.9) {
+        fontSize -= 2;
+      }
+    } while (width > off.width * 0.9 && fontSize > 8);
 
-  const keyLight =
-    new THREE.DirectionalLight("#ffffff", 0.6);
+    octx.clearRect(0, 0, off.width, off.height);
+    octx.textAlign = "center";
+    octx.textBaseline = "middle";
+    octx.fillStyle = "#fff";
+    octx.font = `900 ${fontSize}px Arial, sans-serif`;
+    octx.fillText(WORD, off.width / 2, off.height / 2 + fontSize * 0.03);
 
-  keyLight.position.set(2.5, 4, 3);
-  scene.add(keyLight);
+    const pixels =
+      octx.getImageData(0, 0, off.width, off.height).data;
 
+    const points = [];
 
-  /* ---- stones ---- */
+    for (let y = 0; y < off.height; y += SAMPLE_STEP) {
+      for (let x = 0; x < off.width; x += SAMPLE_STEP) {
 
-  const geometry =
-    new RoundedBoxGeometry(0.62, 0.62, 0.62, 2, 0.09);
+        const alphaIndex =
+          (y * off.width + x) * 4 + 3;
 
-  const stones =
-    Array.from({ length: STONE_COUNT }, (_, i) => {
+        if (pixels[alphaIndex] > 120) {
+          points.push({
+            x: x + (Math.random() - 0.5) * SAMPLE_STEP * 0.5,
+            y: y + (Math.random() - 0.5) * SAMPLE_STEP * 0.5
+          });
+        }
+      }
+    }
 
-      const material =
-        new THREE.MeshLambertMaterial({
-          color: new THREE.Color(PALETTE[i % PALETTE.length])
-        });
+    return points;
+  }
 
-      const mesh =
-        new THREE.Mesh(geometry, material);
+  let points =
+    buildWordPoints();
 
-      const x =
-        (i - (STONE_COUNT - 1) / 2) * SPACING;
+  // Cap and evenly subsample so dense letters (e.g. "O") don't crowd out
+  // thin ones, and so the count stays cheap to animate.
+  if (points.length > MAX_TESSERAE) {
+    const stride = points.length / MAX_TESSERAE;
+    const sampled = [];
 
-      const restRotation =
-        (Math.sin(i * 12.9898) * 0.5) * 0.5;
+    for (let i = 0; i < MAX_TESSERAE; i++) {
+      sampled.push(points[Math.floor(i * stride)]);
+    }
 
-      mesh.position.set(x, GROUND_Y + DROP_HEIGHT, 0);
-      mesh.rotation.set(0.3, 0.5, 0.15);
-      mesh.visible = false;
+    points = sampled;
+  }
 
-      scene.add(mesh);
+  // Reveal roughly left-to-right, like reading the word being written,
+  // with a little jitter so it doesn't look mechanically perfect.
+  points.sort((a, b) =>
+    (a.x + Math.sin(a.y * 12.9898) * 14) -
+    (b.x + Math.sin(b.y * 12.9898) * 14)
+  );
+
+  const tesserae =
+    points.map((p, i) => {
+
+      const angle =
+        Math.random() * Math.PI * 2;
+
+      const distance =
+        24 + Math.random() * 28;
 
       return {
-        mesh,
-        restRotation,
-        unlockAt: i / STONE_COUNT,
+        x: p.x,
+        y: p.y,
+        fromX: p.x + Math.cos(angle) * distance,
+        fromY: p.y + Math.sin(angle) * distance - 10,
+        size: 3.2 + Math.random() * 2.4,
+        color: PALETTE[i % PALETTE.length],
+        unlockAt: points.length ? i / points.length : 0,
         falling: false,
         landed: false,
         startTime: 0
@@ -151,98 +177,88 @@ if (canvas) {
     });
 
 
-  /* classic bouncing-ball easing: ideal for a stone dropping and settling */
-  function easeOutBounce(t) {
-    const n1 = 7.5625;
-    const d1 = 2.75;
-
-    if (t < 1 / d1) {
-      return n1 * t * t;
-    } else if (t < 2 / d1) {
-      t -= 1.5 / d1;
-      return n1 * t * t + 0.75;
-    } else if (t < 2.5 / d1) {
-      t -= 2.25 / d1;
-      return n1 * t * t + 0.9375;
-    } else {
-      t -= 2.625 / d1;
-      return n1 * t * t + 0.984375;
-    }
+  /* slight overshoot on arrival — a satisfying little "snap into place" */
+  function easeOutBack(t) {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    const x = t - 1;
+    return 1 + c3 * x * x * x + c1 * x * x;
   }
 
 
-  /*
-    Called by app.js with a 0..1 fraction of real download progress.
-    Unlocking is threshold-based so stones drop one after another across
-    the whole download rather than all at once at the end.
-  */
   window.__setLoadingProgress = (fraction) => {
 
     const progress =
       Math.max(0, Math.min(1, fraction));
 
-    if (percentLabel) {
-      percentLabel.textContent =
-        Math.round(progress * 100) + "%";
-    }
-
     const now =
       performance.now();
 
-    for (const stone of stones) {
+    for (const tessera of tesserae) {
 
       if (
-        !stone.falling &&
-        !stone.landed &&
-        progress >= stone.unlockAt
+        !tessera.falling &&
+        !tessera.landed &&
+        progress >= tessera.unlockAt
       ) {
-        stone.falling = true;
-        stone.startTime = now;
-        stone.mesh.visible = true;
+        tessera.falling = true;
+        tessera.startTime = now;
       }
     }
   };
 
 
-  function animate() {
+  function draw() {
 
     const now =
       performance.now();
 
-    for (const stone of stones) {
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-      if (!stone.falling || stone.landed) {
+    for (const tessera of tesserae) {
+
+      if (!tessera.falling) {
         continue;
       }
 
-      const t =
-        Math.min(1, (now - stone.startTime) / FALL_DURATION);
+      const rawT =
+        Math.min(1, (now - tessera.startTime) / FLY_DURATION);
 
       const eased =
-        easeOutBounce(t);
+        easeOutBack(rawT);
 
-      stone.mesh.position.y =
-        GROUND_Y + DROP_HEIGHT * (1 - eased);
+      const x =
+        tessera.fromX + (tessera.x - tessera.fromX) * eased;
 
-      /* tumble while airborne, settle to a small resting tilt on landing */
-      const spin =
-        (1 - eased) * 3.2;
+      const y =
+        tessera.fromY + (tessera.y - tessera.fromY) * eased;
 
-      stone.mesh.rotation.x = 0.3 + spin;
-      stone.mesh.rotation.y = 0.5 + spin * 1.3;
-      stone.mesh.rotation.z = stone.restRotation * eased;
+      const alpha =
+        Math.min(1, rawT * 1.6);
 
-      if (t >= 1) {
-        stone.landed = true;
-        stone.mesh.position.y = GROUND_Y;
-        stone.mesh.rotation.set(0.12, 0.3, stone.restRotation);
+      const scale =
+        Math.min(1, rawT * 1.4);
+
+      if (rawT >= 1) {
+        tessera.landed = true;
       }
+
+      const size =
+        tessera.size * scale;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      ctx.shadowColor = tessera.color;
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = tessera.color;
+      ctx.fillRect(-size / 2, -size / 2, size, size);
+      ctx.restore();
     }
 
-    renderer.render(scene, camera);
-
-    requestAnimationFrame(animate);
+    requestAnimationFrame(draw);
   }
 
-  animate();
-}
+  draw();
+
+})();
