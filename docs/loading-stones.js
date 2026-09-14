@@ -45,7 +45,7 @@
   ];
 
   const SAMPLE_STEP = 4;
-  const MAX_TESSERAE = 220;
+  const MAX_TESSERAE = 320;
   const FLY_DURATION = 480; // ms
 
 
@@ -87,7 +87,7 @@
 
     // Shrink the font until the word fits comfortably in the box.
     let fontSize =
-      Math.floor(cssHeight * 0.6);
+      Math.floor(cssHeight * 0.86);
 
     let width = 0;
 
@@ -95,10 +95,10 @@
       octx.font = `900 ${fontSize}px Arial, sans-serif`;
       width = octx.measureText(WORD).width;
 
-      if (width > off.width * 0.9) {
+      if (width > off.width * 0.96) {
         fontSize -= 2;
       }
-    } while (width > off.width * 0.9 && fontSize > 8);
+    } while (width > off.width * 0.96 && fontSize > 8);
 
     octx.clearRect(0, 0, off.width, off.height);
     octx.textAlign = "center";
